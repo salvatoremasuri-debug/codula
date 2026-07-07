@@ -405,6 +405,52 @@
       color: var(--muted);
       line-height: 1.6;
     }
+    .storage-banner {
+      display: none;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #f59e0b;
+      background: color-mix(in srgb, #f59e0b 12%, var(--card));
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .storage-banner.visible {
+      display: block;
+    }
+    .storage-banner code {
+      font-size: 12px;
+    }
+    .accordion-trigger {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      background: transparent;
+      color: var(--text);
+      border: 0;
+      padding: 0;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+    }
+    .accordion-icon {
+      font-size: 14px;
+      color: var(--muted);
+      transition: transform 0.2s ease;
+    }
+    .accordion.open .accordion-icon {
+      transform: rotate(180deg);
+    }
+    .accordion-panel {
+      margin-top: 10px;
+    }
+    .accordion-panel[hidden] {
+      display: none !important;
+    }
     @media (max-width: 760px) {
       .grid { grid-template-columns: 1fr; }
       .item { grid-template-columns: 1fr; }
@@ -427,6 +473,12 @@
         <button type="button" class="secondary" id="themeToggle">Tema scuro</button>
         <button type="button" class="secondary" id="settingsToggle">Impostazioni</button>
       </div>
+    </div>
+
+    <div id="storageBanner" class="storage-banner">
+      <strong>Server non raggiungibile.</strong> I dati vengono salvati nei file esterni
+      <code>data/prenotazioni.json</code> e <code>data/impostazioni.json</code>.
+      Avvia l'agenda con <code>npm start</code> e apri <code>http://localhost:3080</code>.
     </div>
 
     <div class="card settings-panel" id="settingsPanel">
@@ -587,8 +639,12 @@
       </form>
     </div>
 
-    <div class="card">
-      <h2>Calendario Capienza</h2>
+    <div class="card accordion" id="calendarAccordionCard">
+      <button type="button" class="accordion-trigger" id="calendarAccordionBtn" aria-expanded="false" aria-controls="calendarAccordionPanel">
+        <span>Calendario Capienza</span>
+        <span class="accordion-icon" aria-hidden="true">▾</span>
+      </button>
+      <div class="accordion-panel" id="calendarAccordionPanel" hidden>
       <div class="calendar-toolbar">
         <button type="button" class="secondary" id="calendarPrev" aria-label="Mese precedente">‹</button>
         <div class="calendar-title" id="calendarTitle"></div>
@@ -610,6 +666,7 @@
         <span class="legend-item"><span class="legend-dot over"></span> Superata</span>
         <span class="legend-item">★ Capienza personalizzata</span>
       </div>
+      </div>
     </div>
 
     <div class="card">
@@ -627,12 +684,8 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "agenda_prenotazioni_main";
-    const SETTINGS_KEY = "agenda_impostazioni_main";
-    const BACKUP_BOOKINGS_KEY = "agenda_prenotazioni_backup";
-    const BACKUP_SETTINGS_KEY = "agenda_impostazioni_backup";
-    const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1", "agenda_prenotazioni"];
-    const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1", "agenda_impostazioni"];
+    const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1", "agenda_prenotazioni", "agenda_prenotazioni_main"];
+    const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1", "agenda_impostazioni", "agenda_impostazioni_main"];
     const THEME_KEY = "agenda_theme_v1";
     const DEFAULT_IT = "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.";
     const DEFAULT_EN = "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.";
@@ -686,6 +739,10 @@
     const timeIntervalEl = document.getElementById("timeInterval");
     const timeSlotsPreviewEl = document.getElementById("timeSlotsPreview");
     const timeSelectEl = document.getElementById("time");
+    const storageBannerEl = document.getElementById("storageBanner");
+    const calendarAccordionBtn = document.getElementById("calendarAccordionBtn");
+    const calendarAccordionPanel = document.getElementById("calendarAccordionPanel");
+    const calendarAccordionCard = document.getElementById("calendarAccordionCard");
 
     const MONTHS_IT = [
       "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -698,6 +755,9 @@
     let activeTemplateTextarea = null;
     let calendarMonth = new Date();
     calendarMonth.setDate(1);
+    let bookingsCache = [];
+    let settingsCache = null;
+    let storageOnline = false;
 
     function escapeHtml(str) {
       return String(str)
@@ -739,67 +799,147 @@
       return typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
     }
 
-    function migrateStorage() {
-      function migrateKey(mainKey, legacyKeys, backupKey, isArray) {
-        const current = tryParseJson(localStorage.getItem(mainKey));
-        if (hasData(current, isArray)) return;
+    function getDefaultSettings() {
+      return {
+        maxSeats: 50,
+        msgIt: DEFAULT_IT,
+        msgEn: DEFAULT_EN,
+        dailyCapacity: {},
+        timeSlots: { ...DEFAULT_TIME_SLOTS }
+      };
+    }
 
-        for (const legacyKey of legacyKeys) {
-          const legacy = tryParseJson(localStorage.getItem(legacyKey));
-          if (hasData(legacy, isArray)) {
-            localStorage.setItem(backupKey, JSON.stringify(legacy));
-            localStorage.setItem(mainKey, JSON.stringify(legacy));
-            return;
+    function normalizeSettingsObject(p) {
+      return {
+        maxSeats: Number(p.maxSeats) > 0 ? Number(p.maxSeats) : 50,
+        msgIt: p.msgIt || DEFAULT_IT,
+        msgEn: p.msgEn || DEFAULT_EN,
+        dailyCapacity: p.dailyCapacity && typeof p.dailyCapacity === "object" ? p.dailyCapacity : {},
+        timeSlots: normalizeTimeSlots(p.timeSlots || {})
+      };
+    }
+
+    function readLegacyBookings() {
+      const keys = [...LEGACY_BOOKING_KEYS, "agenda_prenotazioni_backup"];
+      for (const key of keys) {
+        const data = tryParseJson(localStorage.getItem(key));
+        if (hasData(data, true)) return data;
+      }
+      return [];
+    }
+
+    function readLegacySettings() {
+      const keys = [...LEGACY_SETTINGS_KEYS, "agenda_impostazioni_backup"];
+      for (const key of keys) {
+        const data = tryParseJson(localStorage.getItem(key));
+        if (hasData(data, false)) return normalizeSettingsObject(data);
+      }
+      return null;
+    }
+
+    function setStorageBanner(visible) {
+      storageBannerEl.classList.toggle("visible", visible);
+    }
+
+    async function apiFetch(path, options) {
+      const response = await fetch(path, options);
+      if (!response.ok) {
+        throw new Error("Richiesta fallita: " + path);
+      }
+      if (response.status === 204) return null;
+      return response.json();
+    }
+
+    async function persistBookings() {
+      if (!storageOnline) throw new Error("Storage offline");
+      await apiFetch("/api/prenotazioni", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingsCache)
+      });
+    }
+
+    async function persistSettings() {
+      if (!storageOnline) throw new Error("Storage offline");
+      await apiFetch("/api/impostazioni", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settingsCache)
+      });
+    }
+
+    function handlePersistError(message) {
+      alert(message + " Avvia il server con npm start e apri http://localhost:3080");
+    }
+
+    async function initData() {
+      try {
+        await apiFetch("/api/health");
+        const [bookings, settings] = await Promise.all([
+          apiFetch("/api/prenotazioni"),
+          apiFetch("/api/impostazioni")
+        ]);
+        bookingsCache = Array.isArray(bookings) ? bookings : [];
+        settingsCache = normalizeSettingsObject(settings || {});
+
+        const legacyBookings = readLegacyBookings();
+        const legacySettings = readLegacySettings();
+        let migrated = false;
+
+        if (!bookingsCache.length && legacyBookings.length) {
+          bookingsCache = legacyBookings;
+          migrated = true;
+        }
+        if (legacySettings) {
+          const isDefault = settingsCache.maxSeats === 50
+            && settingsCache.msgIt === DEFAULT_IT
+            && settingsCache.msgEn === DEFAULT_EN
+            && !Object.keys(settingsCache.dailyCapacity || {}).length;
+          if (isDefault) {
+            settingsCache = legacySettings;
+            migrated = true;
           }
         }
 
-        const backup = tryParseJson(localStorage.getItem(backupKey));
-        if (hasData(backup, isArray)) {
-          localStorage.setItem(mainKey, JSON.stringify(backup));
+        if (migrated) {
+          await persistBookings();
+          await persistSettings();
         }
-      }
 
-      migrateKey(STORAGE_KEY, LEGACY_BOOKING_KEYS, BACKUP_BOOKINGS_KEY, true);
-      migrateKey(SETTINGS_KEY, LEGACY_SETTINGS_KEYS, BACKUP_SETTINGS_KEY, false);
+        storageOnline = true;
+        setStorageBanner(false);
+      } catch {
+        storageOnline = false;
+        bookingsCache = readLegacyBookings();
+        settingsCache = readLegacySettings() || getDefaultSettings();
+        setStorageBanner(true);
+      }
     }
 
     function loadBookings() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
-      } catch {
-        return [];
-      }
+      return bookingsCache;
     }
 
     function saveBookings(items) {
-      const existing = localStorage.getItem(STORAGE_KEY);
-      if (existing) {
-        localStorage.setItem(BACKUP_BOOKINGS_KEY, existing);
+      bookingsCache = items;
+      if (!storageOnline) {
+        handlePersistError("Impossibile salvare le prenotazioni sul file esterno.");
+        return;
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      persistBookings().catch(() => handlePersistError("Errore salvataggio prenotazioni su data/prenotazioni.json."));
     }
 
     function loadSettings() {
-      try {
-        const raw = localStorage.getItem(SETTINGS_KEY);
-        const p = raw ? JSON.parse(raw) : {};
-        return {
-          maxSeats: Number(p.maxSeats) > 0 ? Number(p.maxSeats) : 50,
-          msgIt: p.msgIt || DEFAULT_IT,
-          msgEn: p.msgEn || DEFAULT_EN,
-          dailyCapacity: p.dailyCapacity && typeof p.dailyCapacity === "object" ? p.dailyCapacity : {},
-          timeSlots: normalizeTimeSlots(p.timeSlots || {})
-        };
-      } catch {
-        return {
-          maxSeats: 50,
-          msgIt: DEFAULT_IT,
-          msgEn: DEFAULT_EN,
-          dailyCapacity: {},
-          timeSlots: { ...DEFAULT_TIME_SLOTS }
-        };
+      return settingsCache || getDefaultSettings();
+    }
+
+    function saveSettings(s) {
+      settingsCache = normalizeSettingsObject(s);
+      if (!storageOnline) {
+        handlePersistError("Impossibile salvare le impostazioni sul file esterno.");
+        return;
       }
+      persistSettings().catch(() => handlePersistError("Errore salvataggio impostazioni su data/impostazioni.json."));
     }
 
     function normalizeTimeSlots(timeSlots) {
@@ -883,14 +1023,6 @@
       if (current && slots.includes(current)) {
         timeSelectEl.value = current;
       }
-    }
-
-    function saveSettings(s) {
-      const existing = localStorage.getItem(SETTINGS_KEY);
-      if (existing) {
-        localStorage.setItem(BACKUP_SETTINGS_KEY, existing);
-      }
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
     }
 
     function getMaxSeatsForDate(date, settings) {
@@ -1234,8 +1366,15 @@
 
     clearAllBtn.addEventListener("click", () => {
       if (!confirm("Eliminare tutte le prenotazioni?")) return;
-      localStorage.removeItem(STORAGE_KEY);
+      saveBookings([]);
       render();
+    });
+
+    calendarAccordionBtn.addEventListener("click", () => {
+      const willOpen = calendarAccordionPanel.hidden;
+      calendarAccordionPanel.hidden = !willOpen;
+      calendarAccordionBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      calendarAccordionCard.classList.toggle("open", willOpen);
     });
 
     document.addEventListener("click", (e) => {
@@ -1490,11 +1629,13 @@
       printHtmlAsPdf("Report_prenotazioni", html);
     });
 
-    migrateStorage();
-    initSettingsUI();
-    applyTheme(localStorage.getItem(THEME_KEY) || "light");
-    renderCalendar();
-    render();
+    (async function bootstrap() {
+      await initData();
+      initSettingsUI();
+      applyTheme(localStorage.getItem(THEME_KEY) || "light");
+      renderCalendar();
+      render();
+    })();
   </script>
 </body>
 </html>

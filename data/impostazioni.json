@@ -1,0 +1,15 @@
+{
+  "maxSeats": 50,
+  "msgIt": "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.",
+  "msgEn": "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.",
+  "dailyCapacity": {},
+  "timeSlots": {
+    "lunchEnabled": true,
+    "lunchStart": "12:00",
+    "lunchEnd": "14:30",
+    "dinnerEnabled": true,
+    "dinnerStart": "19:00",
+    "dinnerEnd": "22:30",
+    "intervalMinutes": 15
+  }
+}

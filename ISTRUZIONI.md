@@ -1,29 +1,43 @@
 # Agenda Prenotazioni Ristorante — Guida completa
 
-Applicazione web leggera per gestire le prenotazioni del ristorante direttamente dal browser (telefono, tablet o PC).  
-Non serve installare nulla: i dati restano salvati nel browser del dispositivo che usi.
+Applicazione web per gestire le prenotazioni del ristorante.  
+I dati vengono salvati in **file JSON esterni** (`data/prenotazioni.json` e `data/impostazioni.json`), non nel browser.
 
 ---
 
-## Link per aprire l'agenda
+## Come avviare l'agenda
 
-### Opzione consigliata — GitHub Pages (se attivato)
+### 1. Avvia il server (obbligatorio)
 
-https://salvatoremasuri-debug.github.io/codula/
+Dal folder del progetto:
 
-> Se il link non funziona ancora, attiva GitHub Pages dal repository:  
-> **Settings → Pages → Branch: `main` → Folder: `/ (root)` → Save**  
-> Dopo 1–2 minuti l'agenda sarà online a quell'indirizzo.
+```bash
+npm start
+```
 
-### Opzione immediata — Anteprima HTML (funziona subito)
+Oppure:
 
-https://htmlpreview.github.io/?https://raw.githubusercontent.com/salvatoremasuri-debug/codula/main/index.html
+```bash
+node server.mjs
+```
 
-### Opzione locale — Dal file sul PC
+### 2. Apri nel browser
 
-1. Scarica `index.html` dal repository
-2. Fai doppio clic sul file
-3. Si apre nel browser predefinito
+**http://localhost:3080**
+
+> L'agenda **deve** essere aperta tramite il server locale.  
+> Se apri solo il file HTML o l'anteprima GitHub, i dati **non** vengono salvati sui file esterni.
+
+### File dati
+
+| File | Contenuto |
+|------|-----------|
+| `data/prenotazioni.json` | Tutte le prenotazioni |
+| `data/impostazioni.json` | Capienza, orari, messaggi WhatsApp |
+| `data/prenotazioni.backup.json` | Backup automatico prenotazioni |
+| `data/impostazioni.backup.json` | Backup automatico impostazioni |
+
+Puoi fare backup copiando la cartella `data/`.
 
 **Repository:** https://github.com/salvatoremasuri-debug/codula
 
@@ -39,13 +53,15 @@ https://htmlpreview.github.io/?https://raw.githubusercontent.com/salvatoremasuri
 | **Impostazioni** | Messaggi WhatsApp, tema chiaro/scuro |
 | **Export** | CSV e PDF per un giorno specifico |
 | **Report** | Statistiche per periodo con filtro stato |
-| **Sicurezza dati** | Salvataggio separato prenotazioni/impostazioni + backup automatico |
+| **Sicurezza dati** | File JSON esterni con backup automatico |
 
 ---
 
 ## Calendario capienza
 
-Tra il modulo prenotazioni e la lista trovi il **Calendario Capienza**:
+Tra il modulo prenotazioni e la lista trovi il **Calendario Capienza** (in un pannello **accordion**, chiuso di default):
+
+- Clicca su **Calendario Capienza** per aprirlo o chiuderlo
 
 - Ogni giorno mostra **posti occupati / posti massimi** (es. `12/50`)
 - Sotto compare il numero di **prenotazioni attive** del giorno
@@ -217,31 +233,31 @@ Il report mostra:
 
 ## Salvataggio e protezione dati
 
-L'agenda salva tutto nel **localStorage** del browser, in due archivi separati:
+L'agenda salva tutto in **file JSON esterni** nella cartella `data/`:
 
-| Chiave | Contenuto |
-|--------|-----------|
-| `agenda_prenotazioni_main` | Tutte le prenotazioni |
-| `agenda_impostazioni_main` | Impostazioni (capienza, messaggi, capienze giornaliere) |
+| File | Contenuto |
+|------|-----------|
+| `data/prenotazioni.json` | Tutte le prenotazioni |
+| `data/impostazioni.json` | Impostazioni (capienza, orari, messaggi) |
 
 ### Backup automatico
 
-Prima di ogni salvataggio viene creato un backup:
+Prima di ogni salvataggio il server crea una copia:
 
 | Backup | Contenuto |
 |--------|-----------|
-| `agenda_prenotazioni_backup` | Copia precedente delle prenotazioni |
-| `agenda_impostazioni_backup` | Copia precedente delle impostazioni |
+| `data/prenotazioni.backup.json` | Copia precedente prenotazioni |
+| `data/impostazioni.backup.json` | Copia precedente impostazioni |
 
-### Migrazione automatica
+### Migrazione da versione precedente
 
-All'avvio, se i dati non sono nel formato nuovo, l'app prova a recuperarli dalle versioni precedenti (`v1`, `v2`, ecc.) e dal backup.
+Se avevi dati salvati nel browser (localStorage), alla prima apertura con il server attivo vengono **importati automaticamente** nei file JSON.
 
 ### Importante
 
-- I dati sono **legati al browser e al dispositivo** che usi
-- Se cambi browser, cancelli i dati del sito o usi la modalità privata, le prenotazioni non ci sono
-- Per sicurezza, esporta periodicamente in CSV/PDF i giorni importanti
+- Avvia sempre l'agenda con `npm start` e apri `http://localhost:3080`
+- Per backup manuali, copia la cartella `data/`
+- Il **tema chiaro/scuro** resta nel browser (preferenza visiva)
 - **Non usare "Svuota tutto"** se non vuoi perdere tutte le prenotazioni
 
 ---
@@ -262,18 +278,20 @@ All'avvio, se i dati non sono nel formato nuovo, l'app prova a recuperarli dalle
 | Problema | Soluzione |
 |----------|-----------|
 | Non vedo le prenotazioni | Controlla il filtro (Oggi/Domani/Tutte). Prova **Reset** |
-| Prenotazioni sparite dopo aggiornamento | Ricarica la pagina: la migrazione parte all'avvio. Se erano già cancellate dal browser, non recuperabili |
+| Server non raggiungibile | Avvia con `npm start` e apri `http://localhost:3080` |
+| Prenotazioni sparite | Controlla `data/prenotazioni.json` o `data/prenotazioni.backup.json` |
 | WhatsApp non si apre | Verifica il numero (solo cifre, con prefisso paese es. 39...) |
 | Export PDF non funziona | Abilita i popup nel browser |
 | Capienza sbagliata | Controlla se c'è un override per quel giorno in Impostazioni |
-| Dati su un altro telefono | I dati non si sincronizzano: esporta e importa manualmente (CSV) o usa sempre lo stesso dispositivo |
+| Dati su un altro PC | Copia la cartella `data/` sul nuovo computer |
 
 ---
 
 ## Requisiti tecnici
 
 - Browser moderno (Chrome, Safari, Firefox, Edge)
-- Connessione internet solo per il primo caricamento della pagina
+- **Node.js** installato (per il server)
+- Connessione internet non necessaria dopo il primo setup
 - JavaScript abilitato
 - Per WhatsApp: app WhatsApp installata sul telefono (da mobile) o WhatsApp Web (da PC)
 
