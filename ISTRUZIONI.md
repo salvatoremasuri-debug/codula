@@ -43,7 +43,21 @@ https://htmlpreview.github.io/?https://raw.githubusercontent.com/salvatoremasuri
 
 ---
 
-## Schermata principale
+## Calendario capienza
+
+Tra il modulo prenotazioni e la lista trovi il **Calendario Capienza**:
+
+- Ogni giorno mostra **posti occupati / posti massimi** (es. `12/50`)
+- Sotto compare il numero di **prenotazioni attive** del giorno
+- Colori:
+  - **Verde** — disponibilità ok
+  - **Arancio** — quasi pieno (≥ 80%)
+  - **Rosso** — capienza superata
+- **★** — giorno con capienza personalizzata nelle Impostazioni
+- **Clic su un giorno** — filtra subito le prenotazioni di quella data
+- Frecce **‹ ›** — cambia mese
+
+---
 
 ### Barra superiore
 

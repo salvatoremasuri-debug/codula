@@ -278,12 +278,121 @@
     .mini-row:last-child {
       border-bottom: 0;
     }
+    .calendar-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .calendar-title {
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+      flex: 1;
+    }
+    .calendar-weekdays,
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .calendar-weekday {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      padding: 4px 0;
+    }
+    .calendar-day {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      min-height: 72px;
+      padding: 6px;
+      background: color-mix(in srgb, var(--card) 92%, #ffffff);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      text-align: left;
+      position: relative;
+      color: var(--text);
+    }
+    button.calendar-day {
+      background: color-mix(in srgb, var(--card) 92%, #ffffff);
+      color: var(--text);
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+    .calendar-day.empty {
+      border: 0;
+      background: transparent;
+      cursor: default;
+      min-height: 0;
+    }
+    .calendar-day .day-num {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .calendar-day .day-seats {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+    .calendar-day .day-bookings {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .calendar-day.cal-today {
+      border-color: var(--primary);
+      box-shadow: inset 0 0 0 1px var(--primary);
+    }
+    .calendar-day.cal-selected {
+      background: color-mix(in srgb, var(--primary) 18%, var(--card));
+      border-color: var(--primary);
+    }
+    .calendar-day.cal-ok .day-seats { color: #15803d; font-weight: 700; }
+    .calendar-day.cal-warn .day-seats { color: #b45309; font-weight: 700; }
+    .calendar-day.cal-over .day-seats { color: var(--danger); font-weight: 700; }
+    .calendar-day.cal-custom::after {
+      content: "★";
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      font-size: 10px;
+      color: var(--primary);
+    }
+    .calendar-legend {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .legend-dot.ok { background: #15803d; }
+    .legend-dot.warn { background: #b45309; }
+    .legend-dot.over { background: var(--danger); }
     @media (max-width: 760px) {
       .grid { grid-template-columns: 1fr; }
       .item { grid-template-columns: 1fr; }
       .btn-row { justify-content: flex-start; }
       .brand p { display: none; }
       .topbar { border-radius: 10px; }
+      .calendar-day { min-height: 58px; padding: 4px; }
+      .calendar-day .day-bookings { display: none; }
     }
   </style>
 </head>
@@ -415,6 +524,31 @@
     </div>
 
     <div class="card">
+      <h2>Calendario Capienza</h2>
+      <div class="calendar-toolbar">
+        <button type="button" class="secondary" id="calendarPrev" aria-label="Mese precedente">‹</button>
+        <div class="calendar-title" id="calendarTitle"></div>
+        <button type="button" class="secondary" id="calendarNext" aria-label="Mese successivo">›</button>
+      </div>
+      <div class="calendar-weekdays">
+        <div class="calendar-weekday">Lun</div>
+        <div class="calendar-weekday">Mar</div>
+        <div class="calendar-weekday">Mer</div>
+        <div class="calendar-weekday">Gio</div>
+        <div class="calendar-weekday">Ven</div>
+        <div class="calendar-weekday">Sab</div>
+        <div class="calendar-weekday">Dom</div>
+      </div>
+      <div id="calendarGrid" class="calendar-grid"></div>
+      <div class="calendar-legend">
+        <span class="legend-item"><span class="legend-dot ok"></span> Disponibile</span>
+        <span class="legend-item"><span class="legend-dot warn"></span> Quasi pieno (≥80%)</span>
+        <span class="legend-item"><span class="legend-dot over"></span> Superata</span>
+        <span class="legend-item">★ Capienza personalizzata</span>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Prenotazioni</h2>
       <div class="toolbar">
         <button type="button" class="secondary" data-filter="today">Oggi</button>
@@ -466,11 +600,22 @@
     const exportReportPdfBtn = document.getElementById("exportReportPdf");
     const reportBox = document.getElementById("reportBox");
     const exportDayPdfBtn = document.getElementById("exportDayPdf");
+    const calendarGridEl = document.getElementById("calendarGrid");
+    const calendarTitleEl = document.getElementById("calendarTitle");
+    const calendarPrevBtn = document.getElementById("calendarPrev");
+    const calendarNextBtn = document.getElementById("calendarNext");
+
+    const MONTHS_IT = [
+      "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+      "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+    ];
 
     let activeFilter = "today";
     let customDateFilter = "";
     let lastReportData = null;
     let activeTemplateTextarea = null;
+    let calendarMonth = new Date();
+    calendarMonth.setDate(1);
 
     function escapeHtml(str) {
       return String(str)
@@ -587,6 +732,90 @@
         .reduce((sum, b) => sum + Number(b.people || 0), 0);
     }
 
+    function countActiveBookingsForDate(bookings, date) {
+      return bookings.filter((b) => b.date === date && !["cancelled", "noshow"].includes(normalizeStatus(b.status))).length;
+    }
+
+    function getCapacityLevel(occupied, max) {
+      if (occupied > max) return "over";
+      if (max > 0 && occupied >= max * 0.8) return "warn";
+      return "ok";
+    }
+
+    function getSelectedCalendarDate() {
+      if (activeFilter === "date") return customDateFilter;
+      if (activeFilter === "today") return toIsoDate(new Date());
+      if (activeFilter === "tomorrow") {
+        const t = new Date();
+        t.setDate(t.getDate() + 1);
+        return toIsoDate(t);
+      }
+      return "";
+    }
+
+    function syncCalendarMonthToDate(isoDate) {
+      if (!isoDate) return;
+      const d = new Date(isoDate + "T12:00:00");
+      if (!Number.isNaN(d.getTime())) {
+        calendarMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+      }
+    }
+
+    function filterBookingsByDate(isoDate) {
+      activeFilter = "date";
+      customDateFilter = isoDate;
+      filterDateEl.value = isoDate;
+      syncCalendarMonthToDate(isoDate);
+      render();
+      document.getElementById("list").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function renderCalendar() {
+      const settings = loadSettings();
+      const bookings = loadBookings();
+      const year = calendarMonth.getFullYear();
+      const month = calendarMonth.getMonth();
+      const todayIso = toIsoDate(new Date());
+      const selectedIso = getSelectedCalendarDate();
+
+      calendarTitleEl.textContent = MONTHS_IT[month] + " " + year;
+
+      const firstDay = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const startOffset = (firstDay.getDay() + 6) % 7;
+      const cells = [];
+
+      for (let i = 0; i < startOffset; i++) {
+        cells.push('<div class="calendar-day empty"></div>');
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const isoDate = year + "-" + String(month + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+        const occupied = getActiveSeatsForDate(bookings, isoDate);
+        const max = getMaxSeatsForDate(isoDate, settings);
+        const level = getCapacityLevel(occupied, max);
+        const bookingsCount = countActiveBookingsForDate(bookings, isoDate);
+        const hasCustom = Number(settings.dailyCapacity?.[isoDate]) > 0;
+        const classes = [
+          "calendar-day",
+          "cal-" + level,
+          isoDate === todayIso ? "cal-today" : "",
+          isoDate === selectedIso ? "cal-selected" : "",
+          hasCustom ? "cal-custom" : ""
+        ].filter(Boolean).join(" ");
+
+        cells.push(`
+          <button type="button" class="${classes}" data-calendar-date="${isoDate}" title="Vedi prenotazioni del ${escapeHtml(formatDate(isoDate))}">
+            <span class="day-num">${day}</span>
+            <span class="day-seats">${occupied}/${max}</span>
+            <span class="day-bookings">${bookingsCount} pren.</span>
+          </button>
+        `);
+      }
+
+      calendarGridEl.innerHTML = cells.join("");
+    }
+
     function applyTemplate(template, booking) {
       return template
         .replaceAll("{name}", booking.name)
@@ -656,6 +885,7 @@
 
       if (!filtered.length) {
         listEl.innerHTML = '<div class="empty">Nessuna prenotazione nel filtro selezionato.</div>';
+        renderCalendar();
         return;
       }
 
@@ -697,6 +927,7 @@
           : `Posti: ${seats}/${maxForDay}`;
         return `<div class="section-title">${escapeHtml(formatDate(dateKey))} - ${seatLabel}</div>${rows}`;
       }).join("");
+      renderCalendar();
     }
 
     function initSettingsUI() {
@@ -841,9 +1072,7 @@
         alert("Seleziona una data.");
         return;
       }
-      activeFilter = "date";
-      customDateFilter = filterDateEl.value;
-      render();
+      filterBookingsByDate(filterDateEl.value);
     });
 
     clearDateFilterBtn.addEventListener("click", () => {
@@ -851,6 +1080,26 @@
       customDateFilter = "";
       filterDateEl.value = "";
       render();
+    });
+
+    calendarPrevBtn.addEventListener("click", () => {
+      calendarMonth.setMonth(calendarMonth.getMonth() - 1);
+      renderCalendar();
+    });
+
+    calendarNextBtn.addEventListener("click", () => {
+      calendarMonth.setMonth(calendarMonth.getMonth() + 1);
+      renderCalendar();
+    });
+
+    calendarGridEl.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const btn = t.closest("[data-calendar-date]");
+      if (!(btn instanceof HTMLElement)) return;
+      const isoDate = btn.getAttribute("data-calendar-date");
+      if (!isoDate) return;
+      filterBookingsByDate(isoDate);
     });
 
     settingsToggleBtn.addEventListener("click", () => {
@@ -1053,6 +1302,7 @@
     migrateStorage();
     initSettingsUI();
     applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    renderCalendar();
     render();
   </script>
 </body>
