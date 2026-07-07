@@ -316,11 +316,11 @@
           <input id="dailyMaxSeats" type="number" min="1">
         </div>
         <div class="field full">
-          <label for="msgIt">Messaggio WhatsApp ITA ({name}, {date}, {time}, {people})</label>
+          <label for="msgIt">Messaggio WhatsApp ITA (usa i placeholder sotto)</label>
           <textarea id="msgIt"></textarea>
         </div>
         <div class="field full">
-          <label for="msgEn">Messaggio WhatsApp ENG ({name}, {date}, {time}, {people})</label>
+          <label for="msgEn">Messaggio WhatsApp ENG (usa i placeholder sotto)</label>
           <textarea id="msgEn"></textarea>
         </div>
       </div>
@@ -431,8 +431,10 @@
   <script>
     const STORAGE_KEY = "agenda_prenotazioni_main";
     const SETTINGS_KEY = "agenda_impostazioni_main";
-    const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1"];
-    const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1"];
+    const BACKUP_BOOKINGS_KEY = "agenda_prenotazioni_backup";
+    const BACKUP_SETTINGS_KEY = "agenda_impostazioni_backup";
+    const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1", "agenda_prenotazioni"];
+    const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1", "agenda_impostazioni"];
     const THEME_KEY = "agenda_theme_v1";
     const DEFAULT_IT = "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.";
     const DEFAULT_EN = "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.";
@@ -496,6 +498,44 @@
       return (v || "").replace(/[^\d]/g, "");
     }
 
+    function tryParseJson(raw) {
+      try {
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function hasData(value, isArray) {
+      if (!value) return false;
+      if (isArray) return Array.isArray(value) && value.length > 0;
+      return typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
+    }
+
+    function migrateStorage() {
+      function migrateKey(mainKey, legacyKeys, backupKey, isArray) {
+        const current = tryParseJson(localStorage.getItem(mainKey));
+        if (hasData(current, isArray)) return;
+
+        for (const legacyKey of legacyKeys) {
+          const legacy = tryParseJson(localStorage.getItem(legacyKey));
+          if (hasData(legacy, isArray)) {
+            localStorage.setItem(backupKey, JSON.stringify(legacy));
+            localStorage.setItem(mainKey, JSON.stringify(legacy));
+            return;
+          }
+        }
+
+        const backup = tryParseJson(localStorage.getItem(backupKey));
+        if (hasData(backup, isArray)) {
+          localStorage.setItem(mainKey, JSON.stringify(backup));
+        }
+      }
+
+      migrateKey(STORAGE_KEY, LEGACY_BOOKING_KEYS, BACKUP_BOOKINGS_KEY, true);
+      migrateKey(SETTINGS_KEY, LEGACY_SETTINGS_KEYS, BACKUP_SETTINGS_KEY, false);
+    }
+
     function loadBookings() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -506,6 +546,10 @@
     }
 
     function saveBookings(items) {
+      const existing = localStorage.getItem(STORAGE_KEY);
+      if (existing) {
+        localStorage.setItem(BACKUP_BOOKINGS_KEY, existing);
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     }
 
@@ -516,15 +560,31 @@
         return {
           maxSeats: Number(p.maxSeats) > 0 ? Number(p.maxSeats) : 50,
           msgIt: p.msgIt || DEFAULT_IT,
-          msgEn: p.msgEn || DEFAULT_EN
+          msgEn: p.msgEn || DEFAULT_EN,
+          dailyCapacity: p.dailyCapacity && typeof p.dailyCapacity === "object" ? p.dailyCapacity : {}
         };
       } catch {
-        return { maxSeats: 50, msgIt: DEFAULT_IT, msgEn: DEFAULT_EN };
+        return { maxSeats: 50, msgIt: DEFAULT_IT, msgEn: DEFAULT_EN, dailyCapacity: {} };
       }
     }
 
     function saveSettings(s) {
+      const existing = localStorage.getItem(SETTINGS_KEY);
+      if (existing) {
+        localStorage.setItem(BACKUP_SETTINGS_KEY, existing);
+      }
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    }
+
+    function getMaxSeatsForDate(date, settings) {
+      const override = settings.dailyCapacity?.[date];
+      return Number(override) > 0 ? Number(override) : settings.maxSeats;
+    }
+
+    function getActiveSeatsForDate(bookings, date) {
+      return bookings
+        .filter((b) => b.date === date && !["cancelled", "noshow"].includes(normalizeStatus(b.status)))
+        .reduce((sum, b) => sum + Number(b.people || 0), 0);
     }
 
     function applyTemplate(template, booking) {
@@ -629,8 +689,13 @@
             </div>
           `;
         }).join("");
-        const seats = grouped[dateKey].reduce((sum, i) => sum + Number(i.people || 0), 0);
-        return `<div class="section-title">${escapeHtml(formatDate(dateKey))} - Posti: ${seats}/${settings.maxSeats}</div>${rows}`;
+        const seats = getActiveSeatsForDate(grouped[dateKey], dateKey);
+        const maxForDay = getMaxSeatsForDate(dateKey, settings);
+        const overCapacity = seats > maxForDay;
+        const seatLabel = overCapacity
+          ? `<span style="color:var(--danger);font-weight:700;">Posti: ${seats}/${maxForDay}</span>`
+          : `Posti: ${seats}/${maxForDay}`;
+        return `<div class="section-title">${escapeHtml(formatDate(dateKey))} - ${seatLabel}</div>${rows}`;
       }).join("");
     }
 
@@ -639,6 +704,22 @@
       maxSeatsEl.value = String(s.maxSeats);
       msgItEl.value = s.msgIt;
       msgEnEl.value = s.msgEn;
+      renderDailyCapacityList();
+    }
+
+    function renderDailyCapacityList() {
+      const s = loadSettings();
+      const entries = Object.entries(s.dailyCapacity || {}).sort((a, b) => a[0].localeCompare(b[0]));
+      if (!entries.length) {
+        dailyCapacityListEl.innerHTML = '<div style="padding:4px;">Nessuna capienza specifica impostata. Usa il valore generale.</div>';
+        return;
+      }
+      dailyCapacityListEl.innerHTML = entries.map(([date, seats]) => `
+        <div class="mini-row">
+          <span>${escapeHtml(formatDate(date))}: <strong>${escapeHtml(String(seats))}</strong> posti</span>
+          <button type="button" class="danger" data-remove-capacity="${escapeHtml(date)}" style="padding:4px 8px;font-size:11px;">Rimuovi</button>
+        </div>
+      `).join("");
     }
 
     function downloadCsv(filename, rows) {
@@ -706,7 +787,14 @@
         alert("Compila i campi obbligatori.");
         return;
       }
+      const settings = loadSettings();
       const all = loadBookings();
+      const currentSeats = getActiveSeatsForDate(all, booking.date);
+      const maxSeats = getMaxSeatsForDate(booking.date, settings);
+      if (currentSeats + booking.people > maxSeats) {
+        alert("Capienza superata per il " + formatDate(booking.date) + ": " + (currentSeats + booking.people) + "/" + maxSeats + " posti.");
+        return;
+      }
       all.push(booking);
       saveBookings(all);
       form.reset();
@@ -780,13 +868,50 @@
         alert("Inserisci numero posti valido.");
         return;
       }
+      const current = loadSettings();
       saveSettings({
         maxSeats,
         msgIt: msgItEl.value.trim() || DEFAULT_IT,
-        msgEn: msgEnEl.value.trim() || DEFAULT_EN
+        msgEn: msgEnEl.value.trim() || DEFAULT_EN,
+        dailyCapacity: current.dailyCapacity || {}
       });
       render();
       alert("Impostazioni salvate.");
+    });
+
+    saveDailyCapacityBtn.addEventListener("click", () => {
+      const date = dailyMaxDateEl.value;
+      const seats = Number(dailyMaxSeatsEl.value);
+      if (!date) {
+        alert("Seleziona una data.");
+        return;
+      }
+      if (!seats || seats < 1) {
+        alert("Inserisci numero posti valido.");
+        return;
+      }
+      const current = loadSettings();
+      const dailyCapacity = { ...(current.dailyCapacity || {}), [date]: seats };
+      saveSettings({
+        ...current,
+        dailyCapacity
+      });
+      renderDailyCapacityList();
+      render();
+      alert("Capienza salvata per il " + formatDate(date) + ".");
+    });
+
+    dailyCapacityListEl.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const date = t.getAttribute("data-remove-capacity");
+      if (!date) return;
+      const current = loadSettings();
+      const dailyCapacity = { ...(current.dailyCapacity || {}) };
+      delete dailyCapacity[date];
+      saveSettings({ ...current, dailyCapacity });
+      renderDailyCapacityList();
+      render();
     });
 
     msgItEl.addEventListener("focus", () => {
@@ -925,6 +1050,7 @@
       printHtmlAsPdf("Report_prenotazioni", html);
     });
 
+    migrateStorage();
     initSettingsUI();
     applyTheme(localStorage.getItem(THEME_KEY) || "light");
     render();
