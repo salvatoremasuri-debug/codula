@@ -385,6 +385,26 @@
     .legend-dot.ok { background: #15803d; }
     .legend-dot.warn { background: #b45309; }
     .legend-dot.over { background: var(--danger); }
+    .check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .check-label input {
+      width: auto;
+    }
+    .slots-preview {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
     @media (max-width: 760px) {
       .grid { grid-template-columns: 1fr; }
       .item { grid-template-columns: 1fr; }
@@ -446,6 +466,48 @@
         <button type="button" id="saveSettings">Salva impostazioni</button>
       </div>
       <div id="dailyCapacityList" class="mini-list"></div>
+
+      <h2 style="margin-top:16px;">Orari prenotabili</h2>
+      <p style="margin:0 0 10px;font-size:12px;color:var(--muted);">Configura gli orari disponibili nel menu prenotazioni. Di default: pranzo e cena ogni 15 minuti.</p>
+      <div class="grid">
+        <div class="field full">
+          <label class="check-label" for="lunchEnabled">
+            <input id="lunchEnabled" type="checkbox">
+            Servizio pranzo attivo
+          </label>
+        </div>
+        <div class="field">
+          <label for="lunchStart">Inizio pranzo</label>
+          <input id="lunchStart" type="time">
+        </div>
+        <div class="field">
+          <label for="lunchEnd">Fine pranzo</label>
+          <input id="lunchEnd" type="time">
+        </div>
+        <div class="field full">
+          <label class="check-label" for="dinnerEnabled">
+            <input id="dinnerEnabled" type="checkbox">
+            Servizio cena attivo
+          </label>
+        </div>
+        <div class="field">
+          <label for="dinnerStart">Inizio cena</label>
+          <input id="dinnerStart" type="time">
+        </div>
+        <div class="field">
+          <label for="dinnerEnd">Fine cena</label>
+          <input id="dinnerEnd" type="time">
+        </div>
+        <div class="field">
+          <label for="timeInterval">Intervallo</label>
+          <select id="timeInterval">
+            <option value="15">Ogni 15 minuti</option>
+            <option value="30">Ogni 30 minuti</option>
+            <option value="60">Ogni 60 minuti</option>
+          </select>
+        </div>
+      </div>
+      <div id="timeSlotsPreview" class="slots-preview"></div>
 
       <h2 style="margin-top:16px;">Export Prenotazioni Giorno</h2>
       <div class="grid">
@@ -509,7 +571,9 @@
           </div>
           <div class="field">
             <label for="time">Orario</label>
-            <input id="time" name="time" type="time" required>
+            <select id="time" name="time" required>
+              <option value="">Seleziona orario</option>
+            </select>
           </div>
           <div class="field">
             <label for="notes">Note (opzionale)</label>
@@ -572,6 +636,15 @@
     const THEME_KEY = "agenda_theme_v1";
     const DEFAULT_IT = "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.";
     const DEFAULT_EN = "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.";
+    const DEFAULT_TIME_SLOTS = {
+      lunchEnabled: true,
+      lunchStart: "12:00",
+      lunchEnd: "14:30",
+      dinnerEnabled: true,
+      dinnerStart: "19:00",
+      dinnerEnd: "22:30",
+      intervalMinutes: 15
+    };
 
     const form = document.getElementById("bookingForm");
     const listEl = document.getElementById("list");
@@ -604,6 +677,15 @@
     const calendarTitleEl = document.getElementById("calendarTitle");
     const calendarPrevBtn = document.getElementById("calendarPrev");
     const calendarNextBtn = document.getElementById("calendarNext");
+    const lunchEnabledEl = document.getElementById("lunchEnabled");
+    const lunchStartEl = document.getElementById("lunchStart");
+    const lunchEndEl = document.getElementById("lunchEnd");
+    const dinnerEnabledEl = document.getElementById("dinnerEnabled");
+    const dinnerStartEl = document.getElementById("dinnerStart");
+    const dinnerEndEl = document.getElementById("dinnerEnd");
+    const timeIntervalEl = document.getElementById("timeInterval");
+    const timeSlotsPreviewEl = document.getElementById("timeSlotsPreview");
+    const timeSelectEl = document.getElementById("time");
 
     const MONTHS_IT = [
       "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -706,10 +788,100 @@
           maxSeats: Number(p.maxSeats) > 0 ? Number(p.maxSeats) : 50,
           msgIt: p.msgIt || DEFAULT_IT,
           msgEn: p.msgEn || DEFAULT_EN,
-          dailyCapacity: p.dailyCapacity && typeof p.dailyCapacity === "object" ? p.dailyCapacity : {}
+          dailyCapacity: p.dailyCapacity && typeof p.dailyCapacity === "object" ? p.dailyCapacity : {},
+          timeSlots: normalizeTimeSlots(p.timeSlots || {})
         };
       } catch {
-        return { maxSeats: 50, msgIt: DEFAULT_IT, msgEn: DEFAULT_EN, dailyCapacity: {} };
+        return {
+          maxSeats: 50,
+          msgIt: DEFAULT_IT,
+          msgEn: DEFAULT_EN,
+          dailyCapacity: {},
+          timeSlots: { ...DEFAULT_TIME_SLOTS }
+        };
+      }
+    }
+
+    function normalizeTimeSlots(timeSlots) {
+      const merged = { ...DEFAULT_TIME_SLOTS, ...timeSlots };
+      const interval = Number(merged.intervalMinutes);
+      merged.intervalMinutes = [15, 30, 60].includes(interval) ? interval : 15;
+      merged.lunchEnabled = merged.lunchEnabled !== false;
+      merged.dinnerEnabled = merged.dinnerEnabled !== false;
+      return merged;
+    }
+
+    function timeToMinutes(value) {
+      const parts = String(value || "00:00").split(":");
+      const hours = Number(parts[0]) || 0;
+      const minutes = Number(parts[1]) || 0;
+      return hours * 60 + minutes;
+    }
+
+    function minutesToTime(totalMinutes) {
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0");
+    }
+
+    function generateRangeSlots(start, end, intervalMinutes) {
+      const slots = [];
+      const startMin = timeToMinutes(start);
+      const endMin = timeToMinutes(end);
+      if (startMin > endMin || intervalMinutes < 1) return slots;
+      for (let minute = startMin; minute <= endMin; minute += intervalMinutes) {
+        slots.push(minutesToTime(minute));
+      }
+      return slots;
+    }
+
+    function getBookableTimeSlots(timeSlots) {
+      const ts = normalizeTimeSlots(timeSlots || {});
+      const slots = [];
+      if (ts.lunchEnabled) {
+        slots.push(...generateRangeSlots(ts.lunchStart, ts.lunchEnd, ts.intervalMinutes));
+      }
+      if (ts.dinnerEnabled) {
+        slots.push(...generateRangeSlots(ts.dinnerStart, ts.dinnerEnd, ts.intervalMinutes));
+      }
+      return [...new Set(slots)].sort((a, b) => a.localeCompare(b));
+    }
+
+    function getTimeSlotsFromForm() {
+      return normalizeTimeSlots({
+        lunchEnabled: lunchEnabledEl.checked,
+        lunchStart: lunchStartEl.value,
+        lunchEnd: lunchEndEl.value,
+        dinnerEnabled: dinnerEnabledEl.checked,
+        dinnerStart: dinnerStartEl.value,
+        dinnerEnd: dinnerEndEl.value,
+        intervalMinutes: Number(timeIntervalEl.value)
+      });
+    }
+
+    function renderTimeSlotsPreview(timeSlots) {
+      const slots = getBookableTimeSlots(timeSlots || getTimeSlotsFromForm());
+      if (!slots.length) {
+        timeSlotsPreviewEl.innerHTML = "<strong>Nessun orario generato.</strong> Attiva almeno un servizio e controlla inizio/fine.";
+        return;
+      }
+      timeSlotsPreviewEl.innerHTML = "<strong>Orari disponibili (" + slots.length + "):</strong><br>" + escapeHtml(slots.join(" · "));
+    }
+
+    function renderTimeSelect(preserveValue) {
+      const current = preserveValue ? timeSelectEl.value : "";
+      const slots = getBookableTimeSlots(loadSettings().timeSlots);
+      if (!slots.length) {
+        timeSelectEl.innerHTML = '<option value="">Nessun orario configurato</option>';
+        timeSelectEl.disabled = true;
+        return;
+      }
+      timeSelectEl.disabled = false;
+      timeSelectEl.innerHTML = '<option value="">Seleziona orario</option>' + slots.map((slot) => (
+        '<option value="' + escapeHtml(slot) + '">' + escapeHtml(slot) + "</option>"
+      )).join("");
+      if (current && slots.includes(current)) {
+        timeSelectEl.value = current;
       }
     }
 
@@ -932,10 +1104,20 @@
 
     function initSettingsUI() {
       const s = loadSettings();
+      const ts = s.timeSlots;
       maxSeatsEl.value = String(s.maxSeats);
       msgItEl.value = s.msgIt;
       msgEnEl.value = s.msgEn;
+      lunchEnabledEl.checked = ts.lunchEnabled;
+      lunchStartEl.value = ts.lunchStart;
+      lunchEndEl.value = ts.lunchEnd;
+      dinnerEnabledEl.checked = ts.dinnerEnabled;
+      dinnerStartEl.value = ts.dinnerStart;
+      dinnerEndEl.value = ts.dinnerEnd;
+      timeIntervalEl.value = String(ts.intervalMinutes);
       renderDailyCapacityList();
+      renderTimeSlotsPreview(ts);
+      renderTimeSelect(true);
     }
 
     function renderDailyCapacityList() {
@@ -1122,10 +1304,18 @@
         maxSeats,
         msgIt: msgItEl.value.trim() || DEFAULT_IT,
         msgEn: msgEnEl.value.trim() || DEFAULT_EN,
-        dailyCapacity: current.dailyCapacity || {}
+        dailyCapacity: current.dailyCapacity || {},
+        timeSlots: getTimeSlotsFromForm()
       });
+      renderTimeSlotsPreview();
+      renderTimeSelect(true);
       render();
       alert("Impostazioni salvate.");
+    });
+
+    [lunchEnabledEl, lunchStartEl, lunchEndEl, dinnerEnabledEl, dinnerStartEl, dinnerEndEl, timeIntervalEl].forEach((el) => {
+      el.addEventListener("change", () => renderTimeSlotsPreview());
+      el.addEventListener("input", () => renderTimeSlotsPreview());
     });
 
     saveDailyCapacityBtn.addEventListener("click", () => {
@@ -1143,7 +1333,8 @@
       const dailyCapacity = { ...(current.dailyCapacity || {}), [date]: seats };
       saveSettings({
         ...current,
-        dailyCapacity
+        dailyCapacity,
+        timeSlots: current.timeSlots
       });
       renderDailyCapacityList();
       render();

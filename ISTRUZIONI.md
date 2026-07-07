@@ -74,7 +74,7 @@ Compila i campi e premi **Aggiungi**:
 | Numero persone | Sì | Minimo 1 |
 | Telefono | Sì | Solo cifre, es. `393331234567` (prefisso internazionale senza `+`) |
 | Data | Sì | |
-| Orario | Sì | |
+| Orario | Sì | Seleziona dal menu (orari configurati in Impostazioni) |
 | Note | No | Es. allergie, seggiolone, tavolo preferito |
 
 **Controllo capienza:** se per quel giorno non ci sono abbastanza posti liberi, la prenotazione viene bloccata con un messaggio di avviso.
@@ -142,6 +142,25 @@ Sotto compare la lista delle capienze impostate. Puoi **Rimuovi** per tornare al
 
 > La capienza specifica ha priorità sul valore generale solo per la data scelta.
 
+### Orari prenotabili
+
+Nel menu **Nuova Prenotazione**, il campo orario è un menu a tendina con solo gli orari che configuri qui.
+
+**Default:**
+- **Pranzo:** 12:00 – 14:30, ogni 15 minuti
+- **Cena:** 19:00 – 22:30, ogni 15 minuti
+
+**Come configurare:**
+1. Attiva/disattiva **Servizio pranzo** e/o **Servizio cena**
+2. Imposta **inizio** e **fine** per ogni servizio
+3. Scegli l'**intervallo** (15, 30 o 60 minuti)
+4. Controlla l'anteprima degli orari generati
+5. Premi **Salva impostazioni**
+
+Esempi:
+- Solo cena: disattiva il pranzo
+- Pranzo 12:30–14:00 ogni 30 min: imposta inizio/fine e intervallo 30
+
 ### Messaggi WhatsApp
 
 Due campi di testo:
@@ -166,7 +185,7 @@ Sotto i messaggi trovi una barra con pulsanti da inserire con un clic:
 2. Clicca sul placeholder desiderato
 3. Il testo viene inserito nella posizione del cursore
 
-Premi **Salva impostazioni** per memorizzare messaggi e capienza generale.
+Premi **Salva impostazioni** per memorizzare messaggi, orari e capienza generale.
 
 ---
 
