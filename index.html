@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agenda Prenotazioni Ristorante</title>
+  <style>
+    :root {
+      --bg: #f3f5fa;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --topbar: #ffffffcc;
+      --primary: #0f766e;
+      --secondary: #475569;
+      --danger: #b91c1c;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+    }
+    [data-theme="dark"] {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --line: #273449;
+      --topbar: #0b1220cc;
+      --primary: #14b8a6;
+      --secondary: #64748b;
+      --danger: #ef4444;
+      --shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(20, 184, 166, 0.18), transparent 35%),
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 30%),
+        var(--bg);
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 14px;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+      background: var(--topbar);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 10px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .brand h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+    .brand p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 17px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field.full { grid-column: 1 / -1; }
+    label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    input, textarea, select, button, .link-btn {
+      font: inherit;
+    }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: transparent;
+      color: var(--text);
+    }
+    textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
+    .actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button, .link-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 11px;
+      cursor: pointer;
+      text-decoration: none;
+      color: #fff;
+      background: var(--primary);
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      line-height: 1;
+    }
+    button.secondary { background: var(--secondary); }
+    button.danger { background: var(--danger); }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    .toolbar input[type="date"] {
+      width: auto;
+      min-width: 168px;
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .section-title {
+      margin: 10px 0 4px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      background: color-mix(in srgb, var(--card) 92%, #ffffff);
+    }
+    .name {
+      margin: 0 0 4px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .status {
+      border-radius: 999px;
+      padding: 2px 8px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      background: #64748b;
+    }
+    .st-confirmed { background: #15803d; }
+    .st-cancelled { background: #b91c1c; }
+    .st-noshow { background: #7c3aed; }
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .icon-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      padding: 0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .icon-phone { background: #0f766e; }
+    .icon-wa-it { background: #16a34a; }
+    .icon-wa-en { background: #2563eb; }
+    .icon-pending { background: #475569; }
+    .icon-confirmed { background: #15803d; }
+    .icon-cancelled { background: #b91c1c; }
+    .icon-noshow { background: #7c3aed; }
+    .icon-delete { background: #7f1d1d; }
+    .empty {
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+    .settings-panel {
+      display: none;
+    }
+    .settings-panel.open {
+      display: block;
+    }
+    .report-box {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      color: var(--text);
+      background: color-mix(in srgb, var(--card) 90%, #ffffff);
+    }
+    .report-box p {
+      margin: 4px 0;
+    }
+    .placeholder-bar {
+      margin-top: 8px;
+      padding: 8px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .placeholder-chip {
+      background: var(--secondary);
+      border-radius: 999px;
+      padding: 6px 9px;
+      font-size: 12px;
+      color: #fff;
+      border: 0;
+      cursor: pointer;
+    }
+    .mini-list {
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+      max-height: 180px;
+      overflow: auto;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .mini-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px dashed var(--line);
+    }
+    .mini-row:last-child {
+      border-bottom: 0;
+    }
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: 1fr; }
+      .item { grid-template-columns: 1fr; }
+      .btn-row { justify-content: flex-start; }
+      .brand p { display: none; }
+      .topbar { border-radius: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Agenda Prenotazioni</h1>
+        <p>Compatta, mobile-friendly, con export e report</p>
+      </div>
+      <div class="row">
+        <button type="button" class="secondary" id="themeToggle">Tema scuro</button>
+        <button type="button" class="secondary" id="settingsToggle">Impostazioni</button>
+      </div>
+    </div>
+
+    <div class="card settings-panel" id="settingsPanel">
+      <h2>Impostazioni</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="maxSeats">Numero posti massimi</label>
+          <input id="maxSeats" type="number" min="1">
+        </div>
+        <div class="field">
+          <label for="dailyMaxDate">Capienza specifica per giorno</label>
+          <input id="dailyMaxDate" type="date">
+        </div>
+        <div class="field">
+          <label for="dailyMaxSeats">Posti per il giorno selezionato</label>
+          <input id="dailyMaxSeats" type="number" min="1">
+        </div>
+        <div class="field full">
+          <label for="msgIt">Messaggio WhatsApp ITA ({name}, {date}, {time}, {people})</label>
+          <textarea id="msgIt"></textarea>
+        </div>
+        <div class="field full">
+          <label for="msgEn">Messaggio WhatsApp ENG ({name}, {date}, {time}, {people})</label>
+          <textarea id="msgEn"></textarea>
+        </div>
+      </div>
+      <div class="placeholder-bar" id="placeholderBar">
+        <button type="button" class="placeholder-chip" data-placeholder="{name}">{name}</button>
+        <button type="button" class="placeholder-chip" data-placeholder="{people}">{people}</button>
+        <button type="button" class="placeholder-chip" data-placeholder="{date}">{date}</button>
+        <button type="button" class="placeholder-chip" data-placeholder="{time}">{time}</button>
+        <button type="button" class="placeholder-chip" data-placeholder="{phone}">{phone}</button>
+        <button type="button" class="placeholder-chip" data-placeholder="{notes}">{notes}</button>
+      </div>
+      <div class="actions">
+        <button type="button" class="secondary" id="saveDailyCapacity">Salva capienza giorno</button>
+        <button type="button" id="saveSettings">Salva impostazioni</button>
+      </div>
+      <div id="dailyCapacityList" class="mini-list"></div>
+
+      <h2 style="margin-top:16px;">Export Prenotazioni Giorno</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="exportDate">Data da esportare</label>
+          <input id="exportDate" type="date">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="exportDay">Esporta CSV</button>
+        <button type="button" class="secondary" id="exportDayPdf">Esporta PDF</button>
+      </div>
+
+      <h2 style="margin-top:16px;">Report Totali per Periodo</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="reportFrom">Dal</label>
+          <input id="reportFrom" type="date">
+        </div>
+        <div class="field">
+          <label for="reportTo">Al</label>
+          <input id="reportTo" type="date">
+        </div>
+        <div class="field">
+          <label for="reportStatus">Filtro stato prenotazione</label>
+          <select id="reportStatus">
+            <option value="all">Tutti gli stati</option>
+            <option value="pending">Da confermare</option>
+            <option value="confirmed">Confermate</option>
+            <option value="cancelled">Annullate</option>
+            <option value="noshow">No-show</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="generateReport">Genera report</button>
+        <button type="button" class="secondary" id="exportReportPdf">Report PDF</button>
+      </div>
+      <div id="reportBox" class="report-box" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Nuova Prenotazione</h2>
+      <form id="bookingForm">
+        <div class="grid">
+          <div class="field">
+            <label for="name">Nome cliente</label>
+            <input id="name" name="name" required>
+          </div>
+          <div class="field">
+            <label for="people">Numero persone</label>
+            <input id="people" name="people" type="number" min="1" required>
+          </div>
+          <div class="field">
+            <label for="phone">Telefono (es. 393331234567)</label>
+            <input id="phone" name="phone" required>
+          </div>
+          <div class="field">
+            <label for="date">Data</label>
+            <input id="date" name="date" type="date" required>
+          </div>
+          <div class="field">
+            <label for="time">Orario</label>
+            <input id="time" name="time" type="time" required>
+          </div>
+          <div class="field">
+            <label for="notes">Note (opzionale)</label>
+            <input id="notes" name="notes">
+          </div>
+        </div>
+        <div class="actions">
+          <button type="submit">Aggiungi</button>
+          <button class="danger" type="button" id="clearAll">Svuota tutto</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Prenotazioni</h2>
+      <div class="toolbar">
+        <button type="button" class="secondary" data-filter="today">Oggi</button>
+        <button type="button" class="secondary" data-filter="tomorrow">Domani</button>
+        <button type="button" class="secondary" data-filter="all">Tutte</button>
+        <input type="date" id="filterDate">
+        <button type="button" class="secondary" id="applyDateFilter">Filtra data</button>
+        <button type="button" class="secondary" id="clearDateFilter">Reset</button>
+      </div>
+      <div id="list" class="list"></div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "agenda_prenotazioni_main";
+    const SETTINGS_KEY = "agenda_impostazioni_main";
+    const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1"];
+    const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1"];
+    const THEME_KEY = "agenda_theme_v1";
+    const DEFAULT_IT = "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.";
+    const DEFAULT_EN = "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.";
+
+    const form = document.getElementById("bookingForm");
+    const listEl = document.getElementById("list");
+    const clearAllBtn = document.getElementById("clearAll");
+    const filterDateEl = document.getElementById("filterDate");
+    const applyDateFilterBtn = document.getElementById("applyDateFilter");
+    const clearDateFilterBtn = document.getElementById("clearDateFilter");
+    const settingsToggleBtn = document.getElementById("settingsToggle");
+    const settingsPanel = document.getElementById("settingsPanel");
+    const themeToggleBtn = document.getElementById("themeToggle");
+    const maxSeatsEl = document.getElementById("maxSeats");
+    const dailyMaxDateEl = document.getElementById("dailyMaxDate");
+    const dailyMaxSeatsEl = document.getElementById("dailyMaxSeats");
+    const saveDailyCapacityBtn = document.getElementById("saveDailyCapacity");
+    const dailyCapacityListEl = document.getElementById("dailyCapacityList");
+    const msgItEl = document.getElementById("msgIt");
+    const msgEnEl = document.getElementById("msgEn");
+    const placeholderBarEl = document.getElementById("placeholderBar");
+    const saveSettingsBtn = document.getElementById("saveSettings");
+    const exportDateEl = document.getElementById("exportDate");
+    const exportDayBtn = document.getElementById("exportDay");
+    const reportFromEl = document.getElementById("reportFrom");
+    const reportToEl = document.getElementById("reportTo");
+    const reportStatusEl = document.getElementById("reportStatus");
+    const generateReportBtn = document.getElementById("generateReport");
+    const exportReportPdfBtn = document.getElementById("exportReportPdf");
+    const reportBox = document.getElementById("reportBox");
+    const exportDayPdfBtn = document.getElementById("exportDayPdf");
+
+    let activeFilter = "today";
+    let customDateFilter = "";
+    let lastReportData = null;
+    let activeTemplateTextarea = null;
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function toIsoDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + day;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return "";
+      const p = dateStr.split("-");
+      return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : dateStr;
+    }
+
+    function normalizePhone(v) {
+      return (v || "").replace(/[^\d]/g, "");
+    }
+
+    function loadBookings() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveBookings(items) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        const p = raw ? JSON.parse(raw) : {};
+        return {
+          maxSeats: Number(p.maxSeats) > 0 ? Number(p.maxSeats) : 50,
+          msgIt: p.msgIt || DEFAULT_IT,
+          msgEn: p.msgEn || DEFAULT_EN
+        };
+      } catch {
+        return { maxSeats: 50, msgIt: DEFAULT_IT, msgEn: DEFAULT_EN };
+      }
+    }
+
+    function saveSettings(s) {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    }
+
+    function applyTemplate(template, booking) {
+      return template
+        .replaceAll("{name}", booking.name)
+        .replaceAll("{date}", formatDate(booking.date))
+        .replaceAll("{time}", booking.time)
+        .replaceAll("{people}", String(booking.people))
+        .replaceAll("{phone}", booking.phone || "")
+        .replaceAll("{notes}", booking.notes || "");
+    }
+
+    function insertAtCursor(textarea, token) {
+      const start = textarea.selectionStart ?? textarea.value.length;
+      const end = textarea.selectionEnd ?? textarea.value.length;
+      const before = textarea.value.slice(0, start);
+      const after = textarea.value.slice(end);
+      textarea.value = before + token + after;
+      const nextPos = start + token.length;
+      textarea.focus();
+      textarea.setSelectionRange(nextPos, nextPos);
+    }
+
+    function whatsappTextIt(b) {
+      return applyTemplate(loadSettings().msgIt, b);
+    }
+
+    function whatsappTextEn(b) {
+      return applyTemplate(loadSettings().msgEn, b);
+    }
+
+    function statusLabel(status) {
+      if (status === "confirmed") return "Confermata";
+      if (status === "cancelled") return "Annullata";
+      if (status === "noshow") return "No-show";
+      return "Da confermare";
+    }
+
+    function normalizeStatus(status) {
+      return status || "pending";
+    }
+
+    function getFilterDate() {
+      if (activeFilter === "date") return customDateFilter;
+      const now = new Date();
+      if (activeFilter === "today") return toIsoDate(now);
+      if (activeFilter === "tomorrow") {
+        const t = new Date(now);
+        t.setDate(now.getDate() + 1);
+        return toIsoDate(t);
+      }
+      return "";
+    }
+
+    function groupByDate(arr) {
+      return arr.reduce((acc, item) => {
+        const k = item.date || "Senza data";
+        if (!acc[k]) acc[k] = [];
+        acc[k].push(item);
+        return acc;
+      }, {});
+    }
+
+    function render() {
+      const settings = loadSettings();
+      const all = loadBookings().sort((a, b) => ((a.date + "T" + a.time).localeCompare(b.date + "T" + b.time)));
+      const filterDate = getFilterDate();
+      const filtered = filterDate ? all.filter((b) => b.date === filterDate) : all;
+
+      if (!filtered.length) {
+        listEl.innerHTML = '<div class="empty">Nessuna prenotazione nel filtro selezionato.</div>';
+        return;
+      }
+
+      const grouped = groupByDate(filtered);
+      const keys = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+      listEl.innerHTML = keys.map((dateKey) => {
+        const rows = grouped[dateKey].map((b) => {
+          const status = b.status || "pending";
+          const notes = b.notes ? "<span>Note: " + escapeHtml(b.notes) + "</span>" : "";
+          return `
+            <div class="item">
+              <div>
+                <p class="name">${escapeHtml(b.name)} - ${escapeHtml(String(b.people))} persone</p>
+                <div class="meta">
+                  <span>${escapeHtml(b.time)}</span>
+                  <span>${escapeHtml(b.phone)}</span>
+                  <span class="status st-${status}">${escapeHtml(statusLabel(status))}</span>
+                  ${notes}
+                </div>
+              </div>
+              <div class="btn-row">
+                <a class="link-btn icon-btn icon-phone" href="tel:${escapeHtml(b.phone)}" title="Chiama">📞</a>
+                <a class="link-btn icon-btn icon-wa-it" href="https://wa.me/${escapeHtml(b.phone)}?text=${encodeURIComponent(whatsappTextIt(b))}" target="_blank" rel="noopener noreferrer" title="WhatsApp Italiano">🇮🇹</a>
+                <a class="link-btn icon-btn icon-wa-en" href="https://wa.me/${escapeHtml(b.phone)}?text=${encodeURIComponent(whatsappTextEn(b))}" target="_blank" rel="noopener noreferrer" title="WhatsApp English">🇬🇧</a>
+                <button class="icon-btn icon-pending" data-status="pending" data-id="${b.id}" title="Da confermare">?</button>
+                <button class="icon-btn icon-confirmed" data-status="confirmed" data-id="${b.id}" title="Confermata">OK</button>
+                <button class="icon-btn icon-cancelled" data-status="cancelled" data-id="${b.id}" title="Annullata">NO</button>
+                <button class="icon-btn icon-noshow" data-status="noshow" data-id="${b.id}" title="No-show">👁️❌</button>
+                <button class="icon-btn icon-delete" data-delete="${b.id}" title="Elimina">🗑️</button>
+              </div>
+            </div>
+          `;
+        }).join("");
+        const seats = grouped[dateKey].reduce((sum, i) => sum + Number(i.people || 0), 0);
+        return `<div class="section-title">${escapeHtml(formatDate(dateKey))} - Posti: ${seats}/${settings.maxSeats}</div>${rows}`;
+      }).join("");
+    }
+
+    function initSettingsUI() {
+      const s = loadSettings();
+      maxSeatsEl.value = String(s.maxSeats);
+      msgItEl.value = s.msgIt;
+      msgEnEl.value = s.msgEn;
+    }
+
+    function downloadCsv(filename, rows) {
+      const csv = rows.map((r) => r.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function printHtmlAsPdf(title, html) {
+      const popup = window.open("", "_blank");
+      if (!popup) {
+        alert("Abilita i popup per esportare in PDF.");
+        return;
+      }
+      popup.document.write(`
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${escapeHtml(title)}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; padding: 20px; }
+            h1 { margin: 0 0 12px; font-size: 20px; }
+            p { margin: 6px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>${html}</body>
+        </html>
+      `);
+      popup.document.close();
+      popup.focus();
+      popup.print();
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem(THEME_KEY, theme);
+      themeToggleBtn.textContent = theme === "dark" ? "Tema chiaro" : "Tema scuro";
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const booking = {
+        id: crypto.randomUUID(),
+        name: String(data.get("name") || "").trim(),
+        people: Number(data.get("people")),
+        phone: normalizePhone(String(data.get("phone") || "")),
+        date: String(data.get("date") || ""),
+        time: String(data.get("time") || ""),
+        notes: String(data.get("notes") || "").trim(),
+        status: "pending"
+      };
+      if (!booking.name || !booking.people || !booking.phone || !booking.date || !booking.time) {
+        alert("Compila i campi obbligatori.");
+        return;
+      }
+      const all = loadBookings();
+      all.push(booking);
+      saveBookings(all);
+      form.reset();
+      render();
+    });
+
+    listEl.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const status = t.getAttribute("data-status");
+      const idForStatus = t.getAttribute("data-id");
+      if (status && idForStatus) {
+        const all = loadBookings().map((b) => b.id === idForStatus ? { ...b, status } : b);
+        saveBookings(all);
+        render();
+        return;
+      }
+      const id = t.getAttribute("data-delete");
+      if (!id) return;
+      if (!confirm("Eliminare la prenotazione?")) return;
+      saveBookings(loadBookings().filter((b) => b.id !== id));
+      render();
+    });
+
+    clearAllBtn.addEventListener("click", () => {
+      if (!confirm("Eliminare tutte le prenotazioni?")) return;
+      localStorage.removeItem(STORAGE_KEY);
+      render();
+    });
+
+    document.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const filter = t.getAttribute("data-filter");
+      if (!filter) return;
+      activeFilter = filter;
+      customDateFilter = "";
+      filterDateEl.value = "";
+      render();
+    });
+
+    applyDateFilterBtn.addEventListener("click", () => {
+      if (!filterDateEl.value) {
+        alert("Seleziona una data.");
+        return;
+      }
+      activeFilter = "date";
+      customDateFilter = filterDateEl.value;
+      render();
+    });
+
+    clearDateFilterBtn.addEventListener("click", () => {
+      activeFilter = "all";
+      customDateFilter = "";
+      filterDateEl.value = "";
+      render();
+    });
+
+    settingsToggleBtn.addEventListener("click", () => {
+      settingsPanel.classList.toggle("open");
+    });
+
+    themeToggleBtn.addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme") || "light";
+      applyTheme(current === "dark" ? "light" : "dark");
+    });
+
+    saveSettingsBtn.addEventListener("click", () => {
+      const maxSeats = Number(maxSeatsEl.value);
+      if (!maxSeats || maxSeats < 1) {
+        alert("Inserisci numero posti valido.");
+        return;
+      }
+      saveSettings({
+        maxSeats,
+        msgIt: msgItEl.value.trim() || DEFAULT_IT,
+        msgEn: msgEnEl.value.trim() || DEFAULT_EN
+      });
+      render();
+      alert("Impostazioni salvate.");
+    });
+
+    msgItEl.addEventListener("focus", () => {
+      activeTemplateTextarea = msgItEl;
+    });
+    msgEnEl.addEventListener("focus", () => {
+      activeTemplateTextarea = msgEnEl;
+    });
+    placeholderBarEl.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const token = t.getAttribute("data-placeholder");
+      if (!token) return;
+      const targetTextarea = activeTemplateTextarea || msgItEl;
+      insertAtCursor(targetTextarea, token);
+    });
+
+    exportDayBtn.addEventListener("click", () => {
+      const date = exportDateEl.value;
+      if (!date) {
+        alert("Seleziona una data da esportare.");
+        return;
+      }
+      const rows = loadBookings().filter((b) => b.date === date);
+      if (!rows.length) {
+        alert("Nessuna prenotazione per la data selezionata.");
+        return;
+      }
+      const table = [
+        ["Nome", "Persone", "Telefono", "Data", "Ora", "Stato", "Note"],
+        ...rows.map((r) => [r.name, r.people, r.phone, r.date, r.time, statusLabel(r.status), r.notes || ""])
+      ];
+      downloadCsv("prenotazioni_" + date + ".csv", table);
+    });
+
+    exportDayPdfBtn.addEventListener("click", () => {
+      const date = exportDateEl.value;
+      if (!date) {
+        alert("Seleziona una data da esportare.");
+        return;
+      }
+      const rows = loadBookings().filter((b) => b.date === date);
+      if (!rows.length) {
+        alert("Nessuna prenotazione per la data selezionata.");
+        return;
+      }
+      const tableRows = rows.map((r) => `
+        <tr>
+          <td>${escapeHtml(r.name)}</td>
+          <td>${escapeHtml(String(r.people))}</td>
+          <td>${escapeHtml(r.phone)}</td>
+          <td>${escapeHtml(formatDate(r.date))}</td>
+          <td>${escapeHtml(r.time)}</td>
+          <td>${escapeHtml(statusLabel(normalizeStatus(r.status)))}</td>
+          <td>${escapeHtml(r.notes || "")}</td>
+        </tr>
+      `).join("");
+      const html = `
+        <h1>Prenotazioni ${escapeHtml(formatDate(date))}</h1>
+        <table>
+          <thead>
+            <tr><th>Nome</th><th>Persone</th><th>Telefono</th><th>Data</th><th>Ora</th><th>Stato</th><th>Note</th></tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      `;
+      printHtmlAsPdf("Prenotazioni_" + date, html);
+    });
+
+    generateReportBtn.addEventListener("click", () => {
+      const from = reportFromEl.value;
+      const to = reportToEl.value;
+      const statusFilter = reportStatusEl.value;
+      if (!from || !to) {
+        alert("Seleziona intervallo completo.");
+        return;
+      }
+      if (from > to) {
+        alert("La data inizio non puo essere successiva alla data fine.");
+        return;
+      }
+      const allRows = loadBookings().filter((b) => b.date >= from && b.date <= to);
+      const rows = statusFilter === "all"
+        ? allRows
+        : allRows.filter((r) => normalizeStatus(r.status) === statusFilter);
+      const total = rows.length;
+      const counts = {
+        confirmed: rows.filter((r) => normalizeStatus(r.status) === "confirmed").length,
+        cancelled: rows.filter((r) => normalizeStatus(r.status) === "cancelled").length,
+        noshow: rows.filter((r) => normalizeStatus(r.status) === "noshow").length,
+        pending: rows.filter((r) => normalizeStatus(r.status) === "pending").length
+      };
+      const peopleTotal = rows.reduce((sum, r) => sum + Number(r.people || 0), 0);
+      const statusTitle = statusFilter === "all" ? "Tutti gli stati" : statusLabel(statusFilter);
+      const noShowRate = total ? ((counts.noshow / total) * 100).toFixed(1) : "0.0";
+      const cancelRate = total ? ((counts.cancelled / total) * 100).toFixed(1) : "0.0";
+      lastReportData = { from, to, statusTitle, total, peopleTotal, counts, noShowRate, cancelRate };
+      reportBox.style.display = "block";
+      reportBox.innerHTML = `
+        <p><strong>Periodo:</strong> ${escapeHtml(formatDate(from))} - ${escapeHtml(formatDate(to))}</p>
+        <p><strong>Filtro stato:</strong> ${escapeHtml(statusTitle)}</p>
+        <p><strong>Prenotazioni totali:</strong> ${total}</p>
+        <p><strong>Persone totali:</strong> ${peopleTotal}</p>
+        <p><strong>Confermate:</strong> ${counts.confirmed}</p>
+        <p><strong>Da confermare:</strong> ${counts.pending}</p>
+        <p><strong>Annullate:</strong> ${counts.cancelled}</p>
+        <p><strong>No-show:</strong> ${counts.noshow}</p>
+        <p><strong>Tasso annullate:</strong> ${cancelRate}%</p>
+        <p><strong>Tasso no-show:</strong> ${noShowRate}%</p>
+      `;
+    });
+
+    exportReportPdfBtn.addEventListener("click", () => {
+      if (!lastReportData) {
+        alert("Genera prima un report.");
+        return;
+      }
+      const d = lastReportData;
+      const html = `
+        <h1>Report Prenotazioni</h1>
+        <p><strong>Periodo:</strong> ${escapeHtml(formatDate(d.from))} - ${escapeHtml(formatDate(d.to))}</p>
+        <p><strong>Filtro stato:</strong> ${escapeHtml(d.statusTitle)}</p>
+        <table>
+          <tbody>
+            <tr><th>Prenotazioni totali</th><td>${d.total}</td></tr>
+            <tr><th>Persone totali</th><td>${d.peopleTotal}</td></tr>
+            <tr><th>Confermate</th><td>${d.counts.confirmed}</td></tr>
+            <tr><th>Da confermare</th><td>${d.counts.pending}</td></tr>
+            <tr><th>Annullate</th><td>${d.counts.cancelled}</td></tr>
+            <tr><th>No-show</th><td>${d.counts.noshow}</td></tr>
+            <tr><th>Tasso annullate</th><td>${d.cancelRate}%</td></tr>
+            <tr><th>Tasso no-show</th><td>${d.noShowRate}%</td></tr>
+          </tbody>
+        </table>
+      `;
+      printHtmlAsPdf("Report_prenotazioni", html);
+    });
+
+    initSettingsUI();
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    render();
+  </script>
+</body>
+</html>
