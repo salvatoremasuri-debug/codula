@@ -419,6 +419,10 @@
     .storage-banner.visible {
       display: block;
     }
+    .storage-banner.info {
+      border-color: #3b82f6;
+      background: color-mix(in srgb, #3b82f6 10%, var(--card));
+    }
     .storage-banner code {
       font-size: 12px;
     }
@@ -693,6 +697,8 @@
     const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1", "agenda_prenotazioni", "agenda_prenotazioni_main"];
     const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1", "agenda_impostazioni", "agenda_impostazioni_main"];
     const THEME_KEY = "agenda_theme_v1";
+    const LOCAL_BOOKINGS_KEY = "agenda_prenotazioni_main";
+    const LOCAL_SETTINGS_KEY = "agenda_impostazioni_main";
     const DATA_BOOKINGS_URL = "data/prenotazioni.json";
     const DATA_SETTINGS_URL = "data/impostazioni.json";
     const API_SAVE_URLS = ["api/save.php", "api/save"];
@@ -769,6 +775,7 @@
     let bookingsCache = [];
     let settingsCache = null;
     let storageOnline = false;
+    let storageMode = "local";
 
     function escapeHtml(str) {
       return String(str)
@@ -900,43 +907,95 @@
       throw lastError || new Error("Nessun endpoint di salvataggio disponibile.");
     }
 
+    function readLocalBookings() {
+      const data = tryParseJson(localStorage.getItem(LOCAL_BOOKINGS_KEY));
+      return Array.isArray(data) ? data : [];
+    }
+
+    function readLocalSettings() {
+      const data = tryParseJson(localStorage.getItem(LOCAL_SETTINGS_KEY));
+      return data ? normalizeSettingsObject(data) : null;
+    }
+
+    function writeLocalBookings() {
+      localStorage.setItem(LOCAL_BOOKINGS_KEY, JSON.stringify(bookingsCache));
+    }
+
+    function writeLocalSettings() {
+      localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settingsCache));
+    }
+
+    function activateLocalMode(message) {
+      storageMode = "local";
+      storageOnline = true;
+      const legacyBookings = readLegacyBookings();
+      const legacySettings = readLegacySettings();
+      if (!bookingsCache.length && legacyBookings.length) bookingsCache = legacyBookings;
+      if (legacySettings) {
+        const isDefault = !settingsCache
+          || (settingsCache.maxSeats === 50
+            && settingsCache.msgIt === DEFAULT_IT
+            && settingsCache.msgEn === DEFAULT_EN
+            && !Object.keys(settingsCache.dailyCapacity || {}).length);
+        if (isDefault) settingsCache = legacySettings;
+      }
+      if (!settingsCache) settingsCache = readLocalSettings() || getDefaultSettings();
+      if (!bookingsCache.length) bookingsCache = readLocalBookings();
+      writeLocalBookings();
+      writeLocalSettings();
+      storageBannerEl.classList.remove("info");
+      storageBannerEl.classList.add("info");
+      setStorageBanner(true, message || "<strong>Modalità provvisoria.</strong> I dati sono salvati nel browser di questo dispositivo. Per uso definitivo carica l'agenda su un hosting con <strong>PHP</strong> oppure avvia <code>npm start</code> in locale.");
+      updateStorageStatus("Salvataggio locale attivo (browser) · Prenotazioni: " + bookingsCache.length + ".");
+    }
+
     async function persistBookings() {
+      if (storageMode === "local") {
+        writeLocalBookings();
+        return;
+      }
       if (!storageOnline) throw new Error("Storage offline");
       await saveJsonFile("prenotazioni", bookingsCache);
     }
 
     async function persistSettings() {
+      if (storageMode === "local") {
+        writeLocalSettings();
+        return;
+      }
       if (!storageOnline) throw new Error("Storage offline");
       await saveJsonFile("impostazioni", settingsCache);
     }
 
     function handlePersistError(message) {
+      if (storageMode === "local") return;
       alert(message + " Verifica che l'hosting supporti PHP (api/save.php) o avvia npm start in locale.");
     }
 
     async function initData() {
+      const legacyBookings = readLegacyBookings();
+      const legacySettings = readLegacySettings();
+
       try {
         const [bookings, settings] = await Promise.all([
-          fetchJsonFile(DATA_BOOKINGS_URL, []),
-          fetchJsonFile(DATA_SETTINGS_URL, getDefaultSettings())
+          fetchJsonFile(DATA_BOOKINGS_URL, null),
+          fetchJsonFile(DATA_SETTINGS_URL, null)
         ]);
 
-        bookingsCache = Array.isArray(bookings) ? bookings : [];
-        settingsCache = normalizeSettingsObject(settings || {});
+        if (bookings !== null) bookingsCache = Array.isArray(bookings) ? bookings : [];
+        if (settings !== null) settingsCache = normalizeSettingsObject(settings || {});
 
-        const legacyBookings = readLegacyBookings();
-        const legacySettings = readLegacySettings();
         let migrated = false;
-
         if (!bookingsCache.length && legacyBookings.length) {
           bookingsCache = legacyBookings;
           migrated = true;
         }
         if (legacySettings) {
-          const isDefault = settingsCache.maxSeats === 50
-            && settingsCache.msgIt === DEFAULT_IT
-            && settingsCache.msgEn === DEFAULT_EN
-            && !Object.keys(settingsCache.dailyCapacity || {}).length;
+          const isDefault = !settingsCache
+            || (settingsCache.maxSeats === 50
+              && settingsCache.msgIt === DEFAULT_IT
+              && settingsCache.msgEn === DEFAULT_EN
+              && !Object.keys(settingsCache.dailyCapacity || {}).length);
           if (isDefault) {
             settingsCache = legacySettings;
             migrated = true;
@@ -944,13 +1003,14 @@
         }
 
         const saveApi = await probeSaveApi();
-        storageOnline = Boolean(saveApi);
-
-        if (!storageOnline) {
-          setStorageBanner(true);
-          updateStorageStatus("Lettura ok, ma salvataggio non disponibile. Serve hosting PHP o npm start.", true);
+        if (!saveApi) {
+          activateLocalMode();
           return;
         }
+
+        storageMode = "server";
+        storageOnline = true;
+        storageBannerEl.classList.remove("info");
 
         if (migrated) {
           await persistBookings();
@@ -958,13 +1018,10 @@
         }
 
         setStorageBanner(false);
-        updateStorageStatus("Dati in data/prenotazioni.json e data/impostazioni.json · Salvataggio attivo (" + saveApi + ") · Prenotazioni: " + bookingsCache.length + ".");
+        updateStorageStatus("Dati in data/prenotazioni.json e data/impostazioni.json · Salvataggio server attivo (" + saveApi + ") · Prenotazioni: " + bookingsCache.length + ".");
       } catch (error) {
-        storageOnline = false;
-        bookingsCache = readLegacyBookings();
-        settingsCache = readLegacySettings() || getDefaultSettings();
-        setStorageBanner(true, "<strong>Impossibile caricare i dati.</strong> " + escapeHtml(error.message || "Controlla i file in data/."));
-        updateStorageStatus("Errore caricamento: " + (error.message || "sconosciuto"), true);
+        activateLocalMode("<strong>Modalità provvisoria.</strong> Impossibile collegarsi ai file sul server. I dati restano nel browser di questo dispositivo.");
+        updateStorageStatus("Salvataggio locale attivo · Prenotazioni: " + bookingsCache.length + ".");
       }
     }
 
@@ -974,8 +1031,8 @@
 
     function saveBookings(items) {
       bookingsCache = items;
-      if (!storageOnline) {
-        handlePersistError("Impossibile salvare le prenotazioni sul file esterno.");
+      if (!storageOnline && storageMode !== "local") {
+        handlePersistError("Impossibile salvare le prenotazioni.");
         return;
       }
       persistBookings().catch((error) => handlePersistError("Errore salvataggio prenotazioni: " + (error.message || "")));
@@ -987,8 +1044,8 @@
 
     function saveSettings(s) {
       settingsCache = normalizeSettingsObject(s);
-      if (!storageOnline) {
-        handlePersistError("Impossibile salvare le impostazioni sul file esterno.");
+      if (!storageOnline && storageMode !== "local") {
+        handlePersistError("Impossibile salvare le impostazioni.");
         return;
       }
       persistSettings().catch((error) => handlePersistError("Errore salvataggio impostazioni: " + (error.message || "")));
