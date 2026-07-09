@@ -62,6 +62,44 @@ function sendJson(res, status, payload) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", "http://localhost");
+  const pathname = url.pathname.replace(/\.php$/, "");
+
+  if ((pathname === "/api/check-auth") && req.method === "GET") {
+    sendJson(res, 200, { ok: true, authenticated: true, authRequired: false, username: "admin" });
+    return;
+  }
+
+  if ((pathname === "/api/login") && req.method === "POST") {
+    sendJson(res, 200, { ok: true, username: "admin" });
+    return;
+  }
+
+  if ((pathname === "/api/logout") && req.method === "POST") {
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if ((pathname === "/api/load") && req.method === "GET") {
+    try {
+      const file = url.searchParams.get("file");
+      const allowed = ["prenotazioni", "impostazioni"];
+      if (!allowed.includes(file)) {
+        sendJson(res, 400, { error: "File non valido." });
+        return;
+      }
+      const target = path.join(DATA_DIR, file + ".json");
+      let data = file === "prenotazioni" ? [] : {};
+      try {
+        data = JSON.parse(await fs.readFile(target, "utf8"));
+      } catch {
+        // Usa fallback vuoto.
+      }
+      sendJson(res, 200, { ok: true, file, data });
+    } catch (error) {
+      sendJson(res, 500, { error: error.message || "Errore server." });
+    }
+    return;
+  }
 
   if ((url.pathname === "/api/save" || url.pathname === "/api/save.php") && req.method === "POST") {
     try {

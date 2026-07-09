@@ -1,1 +1,2 @@
 data/*.backup.json
+config/auth.php

@@ -423,6 +423,30 @@
       border-color: #3b82f6;
       background: color-mix(in srgb, #3b82f6 10%, var(--card));
     }
+    .login-gate {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+    }
+    .login-gate[hidden],
+    .wrap[hidden] {
+      display: none !important;
+    }
+    .login-card {
+      width: 100%;
+      max-width: 380px;
+    }
+    .login-card h2 {
+      margin: 0 0 8px;
+    }
+    .login-hint {
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
     .storage-banner code {
       font-size: 12px;
     }
@@ -467,13 +491,35 @@
   </style>
 </head>
 <body>
-  <div class="wrap">
+  <div id="loginGate" class="login-gate" hidden>
+    <div class="card login-card">
+      <h2>Accesso Agenda</h2>
+      <p class="login-hint">Inserisci le credenziali configurate in <code>config/auth.php</code> sul server.</p>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginUser">Username</label>
+          <input id="loginUser" name="username" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="loginPass">Password</label>
+          <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="actions">
+          <button type="submit">Accedi</button>
+        </div>
+        <p id="loginError" class="login-hint" style="color:var(--danger);display:none;"></p>
+      </form>
+    </div>
+  </div>
+
+  <div class="wrap" id="appWrap" hidden>
     <div class="topbar">
       <div class="brand">
         <h1>Agenda Prenotazioni</h1>
         <p>Compatta, mobile-friendly, con export e report</p>
       </div>
       <div class="row">
+        <button type="button" class="secondary" id="logoutBtn">Esci</button>
         <button type="button" class="secondary" id="themeToggle">Tema scuro</button>
         <button type="button" class="secondary" id="settingsToggle">Impostazioni</button>
       </div>
@@ -702,6 +748,10 @@
     const DATA_BOOKINGS_URL = "data/prenotazioni.json";
     const DATA_SETTINGS_URL = "data/impostazioni.json";
     const API_SAVE_URLS = ["api/save.php", "api/save"];
+    const API_AUTH_CHECK_URLS = ["api/check-auth.php", "api/check-auth"];
+    const API_LOGIN_URLS = ["api/login.php", "api/login"];
+    const API_LOGOUT_URLS = ["api/logout.php", "api/logout"];
+    const API_LOAD_URLS = ["api/load.php", "api/load"];
     const DEFAULT_IT = "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.";
     const DEFAULT_EN = "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.";
     const DEFAULT_TIME_SLOTS = {
@@ -760,6 +810,13 @@
     const calendarAccordionCard = document.getElementById("calendarAccordionCard");
     const storageStatusEl = document.getElementById("storageStatus");
     const reloadDataBtn = document.getElementById("reloadData");
+    const loginGateEl = document.getElementById("loginGate");
+    const appWrapEl = document.getElementById("appWrap");
+    const loginFormEl = document.getElementById("loginForm");
+    const loginUserEl = document.getElementById("loginUser");
+    const loginPassEl = document.getElementById("loginPass");
+    const loginErrorEl = document.getElementById("loginError");
+    const logoutBtn = document.getElementById("logoutBtn");
 
     const MONTHS_IT = [
       "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -776,6 +833,8 @@
     let settingsCache = null;
     let storageOnline = false;
     let storageMode = "local";
+    let authRequired = false;
+    let isAuthenticated = false;
 
     function escapeHtml(str) {
       return String(str)
@@ -860,6 +919,91 @@
       storageBannerEl.classList.toggle("visible", visible);
     }
 
+    function showLoginGate(message) {
+      appWrapEl.hidden = true;
+      loginGateEl.hidden = false;
+      if (message) {
+        loginErrorEl.style.display = "block";
+        loginErrorEl.textContent = message;
+      } else {
+        loginErrorEl.style.display = "none";
+        loginErrorEl.textContent = "";
+      }
+    }
+
+    function showApp() {
+      loginGateEl.hidden = true;
+      appWrapEl.hidden = false;
+      loginErrorEl.style.display = "none";
+      loginErrorEl.textContent = "";
+    }
+
+    async function apiFetchFirst(urls, options) {
+      let lastError = null;
+      for (const url of urls) {
+        try {
+          const response = await fetch(url, { credentials: "same-origin", ...options });
+          return { response, url };
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error("Endpoint non raggiungibile.");
+    }
+
+    async function checkAuthStatus() {
+      try {
+        const { response } = await apiFetchFirst(API_AUTH_CHECK_URLS);
+        if (!response.ok) return { authenticated: false, authRequired: true };
+        return response.json();
+      } catch {
+        return { authenticated: false, authRequired: false };
+      }
+    }
+
+    async function loginRequest(username, password) {
+      const { response } = await apiFetchFirst(API_LOGIN_URLS, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "Accesso non riuscito.");
+      }
+      return payload;
+    }
+
+    async function logoutRequest() {
+      try {
+        await apiFetchFirst(API_LOGOUT_URLS, { method: "POST" });
+      } catch {
+        // Ignora errori logout.
+      }
+    }
+
+    async function ensureAuthenticated() {
+      const saveApi = await probeSaveApi();
+      if (!saveApi) {
+        authRequired = false;
+        isAuthenticated = true;
+        logoutBtn.hidden = true;
+        return true;
+      }
+
+      authRequired = true;
+      logoutBtn.hidden = false;
+      const status = await checkAuthStatus();
+      authRequired = status.authRequired !== false;
+      isAuthenticated = Boolean(status.authenticated);
+      if (!isAuthenticated) {
+        showLoginGate();
+        return false;
+      }
+      showApp();
+      return true;
+    }
+
     function updateStorageStatus(message, isError) {
       storageStatusEl.innerHTML = isError
         ? '<span style="color:var(--danger);">' + escapeHtml(message) + "</span>"
@@ -867,9 +1011,24 @@
     }
 
     async function fetchJsonFile(url, fallback) {
-      const response = await fetch(url + "?t=" + Date.now());
+      const response = await fetch(url + "?t=" + Date.now(), { credentials: "same-origin" });
       if (!response.ok) return fallback;
       return response.json();
+    }
+
+    async function fetchProtectedDataFile(file, fallback) {
+      if (authRequired && isAuthenticated) {
+        try {
+          const { response } = await apiFetchFirst(API_LOAD_URLS.map((url) => url + "?file=" + encodeURIComponent(file)));
+          if (response.status === 401) throw new Error("Non autenticato");
+          if (!response.ok) return fallback;
+          const payload = await response.json();
+          return payload.data ?? fallback;
+        } catch (error) {
+          if (error.message === "Non autenticato") throw error;
+        }
+      }
+      return fetchJsonFile("data/" + file + ".json", fallback);
     }
 
     async function probeSaveApi() {
@@ -877,6 +1036,7 @@
         try {
           const response = await fetch(apiUrl, {
             method: "POST",
+            credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file: "ping" })
           });
@@ -894,9 +1054,15 @@
         try {
           const response = await fetch(apiUrl, {
             method: "POST",
+            credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file, data })
           });
+          if (response.status === 401) {
+            isAuthenticated = false;
+            showLoginGate("Sessione scaduta. Accedi di nuovo.");
+            throw new Error("Sessione scaduta.");
+          }
           if (response.ok) return;
           const err = await response.json().catch(() => ({}));
           lastError = new Error(err.error || "Salvataggio fallito");
@@ -978,8 +1144,8 @@
 
       try {
         const [bookings, settings] = await Promise.all([
-          fetchJsonFile(DATA_BOOKINGS_URL, null),
-          fetchJsonFile(DATA_SETTINGS_URL, null)
+          fetchProtectedDataFile("prenotazioni", null),
+          fetchProtectedDataFile("impostazioni", null)
         ]);
 
         if (bookings !== null) bookingsCache = Array.isArray(bookings) ? bookings : [];
@@ -1018,7 +1184,7 @@
         }
 
         setStorageBanner(false);
-        updateStorageStatus("Dati in data/prenotazioni.json e data/impostazioni.json · Salvataggio server attivo (" + saveApi + ") · Prenotazioni: " + bookingsCache.length + ".");
+        updateStorageStatus("Dati protetti su server · Salvataggio attivo (" + saveApi + ") · Prenotazioni: " + bookingsCache.length + ".");
       } catch (error) {
         activateLocalMode("<strong>Modalità provvisoria.</strong> Impossibile collegarsi ai file sul server. I dati restano nel browser di questo dispositivo.");
         updateStorageStatus("Salvataggio locale attivo · Prenotazioni: " + bookingsCache.length + ".");
@@ -1536,6 +1702,28 @@
       settingsPanel.classList.toggle("open");
     });
 
+    loginFormEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await loginRequest(loginUserEl.value.trim(), loginPassEl.value);
+        isAuthenticated = true;
+        showApp();
+        await initData();
+        initSettingsUI();
+        renderCalendar();
+        render();
+        loginPassEl.value = "";
+      } catch (error) {
+        showLoginGate(error.message || "Accesso non riuscito.");
+      }
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      await logoutRequest();
+      isAuthenticated = false;
+      showLoginGate();
+    });
+
     reloadDataBtn.addEventListener("click", async () => {
       await initData();
       initSettingsUI();
@@ -1747,9 +1935,11 @@
     });
 
     (async function bootstrap() {
+      applyTheme(localStorage.getItem(THEME_KEY) || "light");
+      const allowed = await ensureAuthenticated();
+      if (!allowed) return;
       await initData();
       initSettingsUI();
-      applyTheme(localStorage.getItem(THEME_KEY) || "light");
       renderCalendar();
       render();
     })();

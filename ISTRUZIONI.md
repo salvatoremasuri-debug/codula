@@ -14,16 +14,25 @@ Nessun token, nessun account speciale: carichi i file sul tuo hosting e funziona
 
 ```
 tuo-dominio.it/
-├── index.html          ← l'agenda
+├── index.html
 ├── api/
-│   └── save.php        ← salva i dati (serve PHP)
+│   ├── login.php
+│   ├── logout.php
+│   ├── check-auth.php
+│   ├── load.php
+│   └── save.php
+├── config/
+│   └── auth.php        ← username e password (non accessibile dal web)
+├── includes/
 └── data/
     ├── prenotazioni.json
     └── impostazioni.json
 ```
 
-1. **Lettura** — il browser scarica i file JSON da `data/`
-2. **Scrittura** — quando aggiungi/modifichi una prenotazione, chiama `api/save.php` che aggiorna il file
+1. **Login** — schermata di accesso con username/password
+2. **Lettura** — solo dopo il login, tramite `api/load.php`
+3. **Scrittura** — solo dopo il login, tramite `api/save.php`
+4. I file in `data/` **non sono accessibili** direttamente dal browser
 
 ### Hosting compatibili
 
@@ -38,19 +47,31 @@ tuo-dominio.it/
 
 ---
 
-## Installazione su hosting (Aruba, OVH, ecc.)
+## Installazione su SiteGround (o hosting PHP)
 
 1. Scarica il progetto da GitHub
-2. Carica **tutta la cartella** sul server via FTP:
-   - `index.html`
-   - cartella `api/` (con `save.php`)
-   - cartella `data/` (con i due file JSON)
-3. Apri `https://tuo-dominio.it/index.html`
-4. In **Impostazioni** verifica che compaia **"Salvataggio attivo"**
+2. Carica **tutta la cartella** sul server via FTP / File Manager
+3. Crea le credenziali di accesso:
+   - Copia `config/auth.sample.php` in `config/auth.php`
+   - Modifica username e password in `config/auth.php`
+4. Apri `https://tuo-dominio.it/`
+5. Accedi con le credenziali impostate
 
-### Permessi cartella `data/`
+### Credenziali predefinite (se non modifichi auth.php)
 
-La cartella `data/` deve essere **scrivibile** da PHP (di solito chmod `755` o `775`).
+| Campo | Valore |
+|-------|--------|
+| Username | `admin` |
+| Password | `agenda2026` |
+
+> **Cambia subito la password** in `config/auth.php` dopo il primo accesso.
+
+### Permessi cartelle
+
+| Cartella | Permesso |
+|----------|----------|
+| `data/` | Scrivibile da PHP (chmod `755` o `775`) |
+| `config/` | Non accessibile dal web (c'è già `.htaccess`) |
 
 ---
 
@@ -75,6 +96,26 @@ Apri **http://localhost:3080**
 | **Orari** | Menu a tendina pranzo/cena ogni 15 min |
 | **Export** | CSV e PDF |
 | **Report** | Statistiche per periodo |
+| **Accesso protetto** | Login con username/password |
+
+---
+
+## Sicurezza e accesso
+
+- All'apertura compare la **schermata di login**
+- Solo utenti autorizzati possono vedere e modificare le prenotazioni
+- I file JSON in `data/` sono **bloccati** dall'accesso diretto
+- Pulsante **Esci** in alto a destra per chiudere la sessione
+- Le credenziali si configurano in `config/auth.php` sul server (mai nel browser)
+
+Per cambiare password, modifica `config/auth.php`:
+
+```php
+return [
+    "username" => "tuo_nome",
+    "password" => "tua_password_sicura"
+];
+```
 
 ---
 
