@@ -476,13 +476,43 @@
     </div>
 
     <div id="storageBanner" class="storage-banner">
-      <strong>Server non raggiungibile.</strong> I dati vengono salvati nei file esterni
-      <code>data/prenotazioni.json</code> e <code>data/impostazioni.json</code>.
-      Avvia l'agenda con <code>npm start</code> e apri <code>http://localhost:3080</code>.
+      <strong>Database GitHub non configurato.</strong>
+      Apri <strong>Impostazioni → Database GitHub</strong>, inserisci repository e token, poi clicca <strong>Salva e connetti</strong>.
     </div>
 
     <div class="card settings-panel" id="settingsPanel">
-      <h2>Impostazioni</h2>
+      <h2>Database GitHub</h2>
+      <p style="margin:0 0 10px;font-size:12px;color:var(--muted);">
+        Le prenotazioni e le impostazioni sono salvate nei file JSON del repository GitHub
+        (<code>data/prenotazioni.json</code> e <code>data/impostazioni.json</code>).
+        Funziona su GitHub Pages e su qualsiasi hosting statico.
+      </p>
+      <div class="grid">
+        <div class="field">
+          <label for="ghOwner">Utente / Organizzazione</label>
+          <input id="ghOwner" placeholder="salvatoremasuri-debug">
+        </div>
+        <div class="field">
+          <label for="ghRepo">Repository</label>
+          <input id="ghRepo" placeholder="codula">
+        </div>
+        <div class="field">
+          <label for="ghBranch">Branch</label>
+          <input id="ghBranch" placeholder="main">
+        </div>
+        <div class="field full">
+          <label for="ghToken">Token GitHub (permesso scrittura sul repo)</label>
+          <input id="ghToken" type="password" placeholder="github_pat_... o ghp_...">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" id="saveGithubConfig">Salva e connetti</button>
+        <button type="button" class="secondary" id="testGithubConnection">Test connessione</button>
+        <button type="button" class="secondary" id="syncFromGithub">Ricarica da GitHub</button>
+      </div>
+      <div id="githubStatus" class="slots-preview">Non connesso.</div>
+
+      <h2 style="margin-top:16px;">Impostazioni</h2>
       <div class="grid">
         <div class="field">
           <label for="maxSeats">Numero posti massimi</label>
@@ -687,6 +717,15 @@
     const LEGACY_BOOKING_KEYS = ["agenda_prenotazioni_v2", "agenda_prenotazioni_v1", "agenda_prenotazioni", "agenda_prenotazioni_main"];
     const LEGACY_SETTINGS_KEYS = ["agenda_impostazioni_v2", "agenda_impostazioni_v1", "agenda_impostazioni", "agenda_impostazioni_main"];
     const THEME_KEY = "agenda_theme_v1";
+    const GITHUB_CONFIG_KEY = "agenda_github_config";
+    const BOOKINGS_FILE_PATH = "data/prenotazioni.json";
+    const SETTINGS_FILE_PATH = "data/impostazioni.json";
+    const DEFAULT_GITHUB = {
+      owner: "salvatoremasuri-debug",
+      repo: "codula",
+      branch: "main",
+      token: ""
+    };
     const DEFAULT_IT = "Ciao {name}, ti confermiamo la prenotazione per il {date} alle {time} per {people} persone. Rispondi SI per confermare oppure NO per annullare. Grazie.";
     const DEFAULT_EN = "Hello {name}, this is a reminder for your booking on {date} at {time} for {people} people. Please reply YES to confirm or NO to cancel. Thank you.";
     const DEFAULT_TIME_SLOTS = {
@@ -743,6 +782,14 @@
     const calendarAccordionBtn = document.getElementById("calendarAccordionBtn");
     const calendarAccordionPanel = document.getElementById("calendarAccordionPanel");
     const calendarAccordionCard = document.getElementById("calendarAccordionCard");
+    const ghOwnerEl = document.getElementById("ghOwner");
+    const ghRepoEl = document.getElementById("ghRepo");
+    const ghBranchEl = document.getElementById("ghBranch");
+    const ghTokenEl = document.getElementById("ghToken");
+    const saveGithubConfigBtn = document.getElementById("saveGithubConfig");
+    const testGithubConnectionBtn = document.getElementById("testGithubConnection");
+    const syncFromGithubBtn = document.getElementById("syncFromGithub");
+    const githubStatusEl = document.getElementById("githubStatus");
 
     const MONTHS_IT = [
       "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -758,6 +805,10 @@
     let bookingsCache = [];
     let settingsCache = null;
     let storageOnline = false;
+    let githubFileMeta = {
+      [BOOKINGS_FILE_PATH]: { sha: null },
+      [SETTINGS_FILE_PATH]: { sha: null }
+    };
 
     function escapeHtml(str) {
       return String(str)
@@ -837,50 +888,176 @@
       return null;
     }
 
-    function setStorageBanner(visible) {
+    function setStorageBanner(visible, message) {
+      if (message) storageBannerEl.innerHTML = message;
       storageBannerEl.classList.toggle("visible", visible);
     }
 
-    async function apiFetch(path, options) {
-      const response = await fetch(path, options);
-      if (!response.ok) {
-        throw new Error("Richiesta fallita: " + path);
+    function loadGithubConfig() {
+      const parsed = tryParseJson(localStorage.getItem(GITHUB_CONFIG_KEY)) || {};
+      return {
+        owner: String(parsed.owner || DEFAULT_GITHUB.owner).trim(),
+        repo: String(parsed.repo || DEFAULT_GITHUB.repo).trim(),
+        branch: String(parsed.branch || DEFAULT_GITHUB.branch).trim() || "main",
+        token: String(parsed.token || "").trim()
+      };
+    }
+
+    function saveGithubConfig(config) {
+      localStorage.setItem(GITHUB_CONFIG_KEY, JSON.stringify(config));
+    }
+
+    function getGithubConfigFromForm() {
+      return {
+        owner: ghOwnerEl.value.trim(),
+        repo: ghRepoEl.value.trim(),
+        branch: ghBranchEl.value.trim() || "main",
+        token: ghTokenEl.value.trim()
+      };
+    }
+
+    function initGithubConfigUI() {
+      const config = loadGithubConfig();
+      ghOwnerEl.value = config.owner;
+      ghRepoEl.value = config.repo;
+      ghBranchEl.value = config.branch;
+      ghTokenEl.value = config.token;
+    }
+
+    function updateGithubStatus(message, isError) {
+      githubStatusEl.innerHTML = isError
+        ? '<span style="color:var(--danger);">' + escapeHtml(message) + "</span>"
+        : escapeHtml(message);
+    }
+
+    function githubContentsUrl(path, config) {
+      return "https://api.github.com/repos/" + encodeURIComponent(config.owner) + "/" + encodeURIComponent(config.repo) + "/contents/" + path + "?ref=" + encodeURIComponent(config.branch);
+    }
+
+    function decodeGithubContent(content) {
+      const normalized = String(content || "").replace(/\n/g, "");
+      const binary = atob(normalized);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }
+
+    function encodeGithubContent(text) {
+      const bytes = new TextEncoder().encode(text);
+      let binary = "";
+      bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+      });
+      return btoa(binary);
+    }
+
+    async function githubRequest(path, config, options) {
+      if (!config.owner || !config.repo) {
+        throw new Error("Configura utente e repository GitHub.");
       }
-      if (response.status === 204) return null;
-      return response.json();
+      const headers = {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      };
+      if (config.token) headers.Authorization = "Bearer " + config.token;
+      if (options && options.headers) Object.assign(headers, options.headers);
+      const response = await fetch(githubContentsUrl(path, config), {
+        method: (options && options.method) || "GET",
+        headers,
+        body: options && options.body
+      });
+      return response;
+    }
+
+    async function readGithubJsonFile(path, config, fallback) {
+      const response = await githubRequest(path, config);
+      if (response.status === 404) {
+        return { data: fallback, sha: null };
+      }
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Lettura GitHub fallita per " + path);
+      }
+      const payload = await response.json();
+      const text = decodeGithubContent(payload.content);
+      return { data: JSON.parse(text), sha: payload.sha || null };
+    }
+
+    async function writeGithubJsonFile(path, config, data, sha, message) {
+      if (!config.token) {
+        throw new Error("Token GitHub mancante: necessario per salvare i dati.");
+      }
+      const payload = {
+        message: message || ("Aggiorna " + path),
+        content: encodeGithubContent(JSON.stringify(data, null, 2) + "\n"),
+        branch: config.branch
+      };
+      if (sha) payload.sha = sha;
+      const response = await githubRequest(path, config, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Scrittura GitHub fallita per " + path);
+      }
+      const result = await response.json();
+      return result.content && result.content.sha ? result.content.sha : sha;
     }
 
     async function persistBookings() {
       if (!storageOnline) throw new Error("Storage offline");
-      await apiFetch("/api/prenotazioni", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bookingsCache)
-      });
+      const config = loadGithubConfig();
+      const sha = await writeGithubJsonFile(
+        BOOKINGS_FILE_PATH,
+        config,
+        bookingsCache,
+        githubFileMeta[BOOKINGS_FILE_PATH].sha,
+        "Aggiorna prenotazioni agenda"
+      );
+      githubFileMeta[BOOKINGS_FILE_PATH].sha = sha;
     }
 
     async function persistSettings() {
       if (!storageOnline) throw new Error("Storage offline");
-      await apiFetch("/api/impostazioni", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settingsCache)
-      });
+      const config = loadGithubConfig();
+      const sha = await writeGithubJsonFile(
+        SETTINGS_FILE_PATH,
+        config,
+        settingsCache,
+        githubFileMeta[SETTINGS_FILE_PATH].sha,
+        "Aggiorna impostazioni agenda"
+      );
+      githubFileMeta[SETTINGS_FILE_PATH].sha = sha;
     }
 
     function handlePersistError(message) {
-      alert(message + " Avvia il server con npm start e apri http://localhost:3080");
+      alert(message + " Vai in Impostazioni → Database GitHub e verifica token e repository.");
     }
 
     async function initData() {
+      const config = loadGithubConfig();
+      initGithubConfigUI();
+
+      if (!config.owner || !config.repo || !config.token) {
+        storageOnline = false;
+        bookingsCache = readLegacyBookings();
+        settingsCache = readLegacySettings() || getDefaultSettings();
+        setStorageBanner(true, "<strong>Database GitHub non configurato.</strong> Apri Impostazioni, inserisci repository e token, poi clicca <strong>Salva e connetti</strong>.");
+        updateGithubStatus("In attesa di configurazione.");
+        return;
+      }
+
       try {
-        await apiFetch("/api/health");
-        const [bookings, settings] = await Promise.all([
-          apiFetch("/api/prenotazioni"),
-          apiFetch("/api/impostazioni")
+        const [bookingsFile, settingsFile] = await Promise.all([
+          readGithubJsonFile(BOOKINGS_FILE_PATH, config, []),
+          readGithubJsonFile(SETTINGS_FILE_PATH, config, getDefaultSettings())
         ]);
-        bookingsCache = Array.isArray(bookings) ? bookings : [];
-        settingsCache = normalizeSettingsObject(settings || {});
+
+        githubFileMeta[BOOKINGS_FILE_PATH].sha = bookingsFile.sha;
+        githubFileMeta[SETTINGS_FILE_PATH].sha = settingsFile.sha;
+        bookingsCache = Array.isArray(bookingsFile.data) ? bookingsFile.data : [];
+        settingsCache = normalizeSettingsObject(settingsFile.data || {});
 
         const legacyBookings = readLegacyBookings();
         const legacySettings = readLegacySettings();
@@ -908,11 +1085,13 @@
 
         storageOnline = true;
         setStorageBanner(false);
-      } catch {
+        updateGithubStatus("Connesso a " + config.owner + "/" + config.repo + " (" + config.branch + "). Prenotazioni: " + bookingsCache.length + ".");
+      } catch (error) {
         storageOnline = false;
         bookingsCache = readLegacyBookings();
         settingsCache = readLegacySettings() || getDefaultSettings();
-        setStorageBanner(true);
+        setStorageBanner(true, "<strong>Errore connessione GitHub.</strong> " + escapeHtml(error.message || "Verifica token e repository."));
+        updateGithubStatus("Errore: " + (error.message || "connessione fallita"), true);
       }
     }
 
@@ -926,7 +1105,7 @@
         handlePersistError("Impossibile salvare le prenotazioni sul file esterno.");
         return;
       }
-      persistBookings().catch(() => handlePersistError("Errore salvataggio prenotazioni su data/prenotazioni.json."));
+      persistBookings().catch((error) => handlePersistError("Errore salvataggio prenotazioni su GitHub: " + (error.message || "")));
     }
 
     function loadSettings() {
@@ -939,7 +1118,7 @@
         handlePersistError("Impossibile salvare le impostazioni sul file esterno.");
         return;
       }
-      persistSettings().catch(() => handlePersistError("Errore salvataggio impostazioni su data/impostazioni.json."));
+      persistSettings().catch((error) => handlePersistError("Errore salvataggio impostazioni su GitHub: " + (error.message || "")));
     }
 
     function normalizeTimeSlots(timeSlots) {
@@ -1425,6 +1604,42 @@
 
     settingsToggleBtn.addEventListener("click", () => {
       settingsPanel.classList.toggle("open");
+    });
+
+    saveGithubConfigBtn.addEventListener("click", async () => {
+      const config = getGithubConfigFromForm();
+      if (!config.owner || !config.repo || !config.token) {
+        alert("Compila utente, repository e token GitHub.");
+        return;
+      }
+      saveGithubConfig(config);
+      await initData();
+      initSettingsUI();
+      renderCalendar();
+      render();
+      alert("Connessione GitHub salvata.");
+    });
+
+    testGithubConnectionBtn.addEventListener("click", async () => {
+      const config = getGithubConfigFromForm();
+      if (!config.owner || !config.repo || !config.token) {
+        alert("Compila utente, repository e token GitHub.");
+        return;
+      }
+      try {
+        const bookingsFile = await readGithubJsonFile(BOOKINGS_FILE_PATH, config, []);
+        updateGithubStatus("Test OK: lettura " + config.owner + "/" + config.repo + " riuscita. Prenotazioni trovate: " + (Array.isArray(bookingsFile.data) ? bookingsFile.data.length : 0) + ".");
+      } catch (error) {
+        updateGithubStatus("Test fallito: " + (error.message || "errore sconosciuto"), true);
+      }
+    });
+
+    syncFromGithubBtn.addEventListener("click", async () => {
+      await initData();
+      initSettingsUI();
+      renderCalendar();
+      render();
+      alert("Dati ricaricati da GitHub.");
     });
 
     themeToggleBtn.addEventListener("click", () => {

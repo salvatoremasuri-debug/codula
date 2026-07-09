@@ -1,45 +1,62 @@
 # Agenda Prenotazioni Ristorante — Guida completa
 
 Applicazione web per gestire le prenotazioni del ristorante.  
-I dati vengono salvati in **file JSON esterni** (`data/prenotazioni.json` e `data/impostazioni.json`), non nel browser.
+I dati sono salvati come **file JSON nel repository GitHub** (`data/prenotazioni.json` e `data/impostazioni.json`), tramite API GitHub. Funziona su **GitHub Pages** e su qualsiasi hosting statico.
 
 ---
 
-## Come avviare l'agenda
+## Come aprire l'agenda
 
-### 1. Avvia il server (obbligatorio)
+### Link (GitHub Pages, se attivato)
 
-Dal folder del progetto:
+https://salvatoremasuri-debug.github.io/codula/
 
-```bash
-npm start
-```
+### Anteprima immediata
 
-Oppure:
+https://htmlpreview.github.io/?https://raw.githubusercontent.com/salvatoremasuri-debug/codula/main/index.html
 
-```bash
-node server.mjs
-```
+**Repository:** https://github.com/salvatoremasuri-debug/codula
 
-### 2. Apri nel browser
+---
 
-**http://localhost:3080**
+## Configurazione database GitHub (obbligatoria, una tantum)
 
-> L'agenda **deve** essere aperta tramite il server locale.  
-> Se apri solo il file HTML o l'anteprima GitHub, i dati **non** vengono salvati sui file esterni.
+Alla prima apertura vai in **Impostazioni → Database GitHub** e compila:
 
-### File dati
+| Campo | Esempio |
+|-------|---------|
+| Utente / Organizzazione | `salvatoremasuri-debug` |
+| Repository | `codula` |
+| Branch | `main` |
+| Token GitHub | il tuo token personale |
+
+Poi clicca **Salva e connetti**.
+
+### Come creare il token GitHub
+
+1. Vai su https://github.com/settings/tokens?type=beta (Fine-grained tokens)
+2. **Generate new token**
+3. Nome: `agenda-prenotazioni`
+4. Repository access: **Only select repositories** → scegli `codula`
+5. Permissions → **Contents**: Read and write
+6. Genera e copia il token (`github_pat_...`)
+7. Incollalo nel campo Token dell'agenda
+
+> Il token resta salvato **solo nel browser** del dispositivo che usi (non nel repository).
+
+### File dati nel repository
 
 | File | Contenuto |
 |------|-----------|
 | `data/prenotazioni.json` | Tutte le prenotazioni |
 | `data/impostazioni.json` | Capienza, orari, messaggi WhatsApp |
-| `data/prenotazioni.backup.json` | Backup automatico prenotazioni |
-| `data/impostazioni.backup.json` | Backup automatico impostazioni |
 
-Puoi fare backup copiando la cartella `data/`.
+Ogni modifica nell'agenda aggiorna questi file su GitHub. Puoi vederli e ripristinarli dalla cronologia del repository.
 
-**Repository:** https://github.com/salvatoremasuri-debug/codula
+### Pulsanti utili
+
+- **Test connessione** — verifica che token e repository siano corretti
+- **Ricarica da GitHub** — scarica di nuovo i dati dal repository
 
 ---
 
@@ -53,7 +70,7 @@ Puoi fare backup copiando la cartella `data/`.
 | **Impostazioni** | Messaggi WhatsApp, tema chiaro/scuro |
 | **Export** | CSV e PDF per un giorno specifico |
 | **Report** | Statistiche per periodo con filtro stato |
-| **Sicurezza dati** | File JSON esterni con backup automatico |
+| **Sicurezza dati** | Database JSON su GitHub con cronologia commit |
 
 ---
 
@@ -138,6 +155,10 @@ Per ogni data compare: `GG/MM/AAAA - Posti: occupati/massimo`
 ## Impostazioni
 
 Apri **Impostazioni** dalla barra in alto.
+
+### Database GitHub
+
+Vedi la sezione **Configurazione database GitHub** all'inizio di questo documento.
 
 ### Capienza posti
 
@@ -233,30 +254,27 @@ Il report mostra:
 
 ## Salvataggio e protezione dati
 
-L'agenda salva tutto in **file JSON esterni** nella cartella `data/`:
+L'agenda usa **GitHub come database**: i file JSON vivono nel repository e vengono aggiornati tramite API.
 
 | File | Contenuto |
 |------|-----------|
 | `data/prenotazioni.json` | Tutte le prenotazioni |
 | `data/impostazioni.json` | Impostazioni (capienza, orari, messaggi) |
 
-### Backup automatico
+### Backup
 
-Prima di ogni salvataggio il server crea una copia:
-
-| Backup | Contenuto |
-|--------|-----------|
-| `data/prenotazioni.backup.json` | Copia precedente prenotazioni |
-| `data/impostazioni.backup.json` | Copia precedente impostazioni |
+- Ogni salvataggio crea un **commit** su GitHub
+- Puoi ripristinare versioni precedenti da GitHub → file → **History**
 
 ### Migrazione da versione precedente
 
-Se avevi dati salvati nel browser (localStorage), alla prima apertura con il server attivo vengono **importati automaticamente** nei file JSON.
+Se avevi dati nel browser (localStorage), alla prima connessione GitHub vengono **importati automaticamente** nei file JSON del repository.
 
 ### Importante
 
-- Avvia sempre l'agenda con `npm start` e apri `http://localhost:3080`
-- Per backup manuali, copia la cartella `data/`
+- Configura il token GitHub prima di usare l'agenda
+- Il token è personale: non condividerlo
+- Su un nuovo dispositivo, reinserisci il token nelle Impostazioni
 - Il **tema chiaro/scuro** resta nel browser (preferenza visiva)
 - **Non usare "Svuota tutto"** se non vuoi perdere tutte le prenotazioni
 
@@ -278,20 +296,21 @@ Se avevi dati salvati nel browser (localStorage), alla prima apertura con il ser
 | Problema | Soluzione |
 |----------|-----------|
 | Non vedo le prenotazioni | Controlla il filtro (Oggi/Domani/Tutte). Prova **Reset** |
-| Server non raggiungibile | Avvia con `npm start` e apri `http://localhost:3080` |
-| Prenotazioni sparite | Controlla `data/prenotazioni.json` o `data/prenotazioni.backup.json` |
+| Server non raggiungibile | Non serve server: configura Database GitHub nelle Impostazioni |
+| Token non valido | Rigenera il token con permesso Contents Read/Write sul repo |
+| Prenotazioni sparite | Controlla `data/prenotazioni.json` su GitHub o la cronologia del file |
 | WhatsApp non si apre | Verifica il numero (solo cifre, con prefisso paese es. 39...) |
 | Export PDF non funziona | Abilita i popup nel browser |
 | Capienza sbagliata | Controlla se c'è un override per quel giorno in Impostazioni |
-| Dati su un altro PC | Copia la cartella `data/` sul nuovo computer |
+| Dati su un altro PC | Apri l'agenda e inserisci lo stesso token GitHub |
 
 ---
 
 ## Requisiti tecnici
 
 - Browser moderno (Chrome, Safari, Firefox, Edge)
-- **Node.js** installato (per il server)
-- Connessione internet non necessaria dopo il primo setup
+- Account GitHub con accesso al repository
+- Token GitHub con permesso scrittura sui file del repo
 - JavaScript abilitato
 - Per WhatsApp: app WhatsApp installata sul telefono (da mobile) o WhatsApp Web (da PC)
 
