@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Guida Utilizzo - Agenda Prenotazioni</title>
+  <style>
+    @page { margin: 16mm 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #1f2937;
+      line-height: 1.55;
+      font-size: 11pt;
+      margin: 0;
+      padding: 0;
+    }
+    .cover {
+      text-align: center;
+      padding: 28px 0 34px;
+      border-bottom: 3px solid #0f766e;
+      margin-bottom: 24px;
+    }
+    .cover .icon { font-size: 42px; margin-bottom: 8px; }
+    .cover h1 {
+      margin: 0 0 6px;
+      font-size: 24pt;
+      color: #0f766e;
+    }
+    .cover p {
+      margin: 0;
+      color: #64748b;
+      font-size: 11pt;
+    }
+    h2 {
+      font-size: 14pt;
+      color: #0f766e;
+      margin: 22px 0 10px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11.5pt;
+      margin: 14px 0 6px;
+      color: #334155;
+      page-break-after: avoid;
+    }
+    p, li { margin: 0 0 6px; }
+    ul, ol { margin: 0 0 10px 18px; padding: 0; }
+    .card {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 8px 0 12px;
+      background: #f8fafc;
+      page-break-inside: avoid;
+    }
+    .row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 6px 0;
+    }
+    .ico {
+      min-width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .ico-text { flex: 1; }
+    .ico-phone { background: #0f766e; }
+    .ico-wa-it { background: #16a34a; }
+    .ico-wa-en { background: #2563eb; }
+    .ico-pending { background: #475569; }
+    .ico-confirmed { background: #15803d; }
+    .ico-cancelled { background: #b91c1c; }
+    .ico-noshow { background: #7c3aed; }
+    .ico-delete { background: #7f1d1d; }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 9pt;
+      font-weight: 700;
+      color: #fff;
+      margin-right: 4px;
+    }
+    .b-confirmed { background: #15803d; }
+    .b-pending { background: #64748b; }
+    .b-cancelled { background: #b91c1c; }
+    .b-noshow { background: #7c3aed; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .tip {
+      border-left: 4px solid #0f766e;
+      padding: 8px 10px;
+      background: #ecfdf5;
+      margin: 10px 0;
+      font-size: 10pt;
+    }
+    .footer {
+      margin-top: 24px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 9pt;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 12px;
+      font-size: 10pt;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 7px 8px;
+      text-align: left;
+    }
+    th { background: #f1f5f9; }
+    .chip {
+      display: inline-block;
+      background: #475569;
+      color: #fff;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 9pt;
+      margin: 2px 3px 2px 0;
+    }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <div class="icon">📅</div>
+    <h1>Agenda Prenotazioni</h1>
+    <p>Guida rapida all'utilizzo · Solo uso quotidiano</p>
+  </div>
+
+  <h2>🔐 1. Accesso</h2>
+  <div class="card">
+    <ol>
+      <li>Apri l'agenda dal browser (es. <strong>codulafuili.it/agenda</strong>)</li>
+      <li>Inserisci <strong>username</strong> e <strong>password</strong></li>
+      <li>Clicca <strong>Accedi</strong></li>
+    </ol>
+    <p>Per uscire clicca <strong>Esci</strong> in alto a destra.</p>
+  </div>
+
+  <h2>➕ 2. Nuova prenotazione</h2>
+  <div class="card">
+    <p>Compila il modulo <strong>Nuova Prenotazione</strong> e clicca <strong>Aggiungi</strong>:</p>
+    <table>
+      <thead>
+        <tr><th>Campo</th><th>Cosa inserire</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>👤 Nome cliente</td><td>Nome e cognome</td></tr>
+        <tr><td>👥 Numero persone</td><td>Quanti coperti</td></tr>
+        <tr><td>📞 Telefono</td><td>Solo cifre, es. <code>393331234567</code></td></tr>
+        <tr><td>📅 Data</td><td>Giorno della prenotazione</td></tr>
+        <tr><td>🕐 Orario</td><td>Scegli dal menu (pranzo/cena)</td></tr>
+        <tr><td>📝 Note</td><td>Allergie, seggiolone, tavolo… (opzionale)</td></tr>
+      </tbody>
+    </table>
+    <div class="tip">⚠️ Se il ristorante è pieno per quel giorno, l'agenda blocca l'inserimento e mostra un avviso.</div>
+  </div>
+
+  <h2>📋 3. Lista prenotazioni e filtri</h2>
+  <div class="card">
+    <p>Usa i pulsanti in alto alla lista:</p>
+    <ul>
+      <li><strong>Oggi</strong> — prenotazioni di oggi</li>
+      <li><strong>Domani</strong> — prenotazioni di domani</li>
+      <li><strong>Tutte</strong> — nessun filtro data</li>
+      <li><strong>Filtra data</strong> — scegli un giorno specifico</li>
+      <li><strong>Reset</strong> — torna alla vista completa</li>
+    </ul>
+    <p>Ogni giorno mostra: <strong>Posti occupati / massimo</strong> (es. 12/50).</p>
+    <p>Stati prenotazione:</p>
+    <p>
+      <span class="badge b-pending">Da confermare</span>
+      <span class="badge b-confirmed">Confermata</span>
+      <span class="badge b-cancelled">Annullata</span>
+      <span class="badge b-noshow">No-show</span>
+    </p>
+  </div>
+
+  <h2>🎛️ 4. Azioni su ogni prenotazione</h2>
+  <div class="card">
+    <div class="row">
+      <span class="ico ico-phone">📞</span>
+      <div class="ico-text"><strong>Chiama</strong> — apre la chiamata al cliente</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-wa-it">🇮🇹</span>
+      <div class="ico-text"><strong>WhatsApp Italiano</strong> — messaggio di conferma in italiano</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-wa-en">🇬🇧</span>
+      <div class="ico-text"><strong>WhatsApp English</strong> — messaggio di conferma in inglese</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-pending">?</span>
+      <div class="ico-text"><strong>Da confermare</strong> — prenotazione in attesa</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-confirmed">OK</span>
+      <div class="ico-text"><strong>Confermata</strong> — cliente ha confermato</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-cancelled">NO</span>
+      <div class="ico-text"><strong>Annullata</strong> — prenotazione cancellata</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-noshow">👁️</span>
+      <div class="ico-text"><strong>No-show</strong> — cliente non si è presentato</div>
+    </div>
+    <div class="row">
+      <span class="ico ico-delete">🗑️</span>
+      <div class="ico-text"><strong>Elimina</strong> — rimuove la prenotazione</div>
+    </div>
+  </div>
+
+  <h2>📆 5. Calendario capienza</h2>
+  <div class="card">
+    <p>Clicca su <strong>Calendario Capienza</strong> per aprire il pannello (è chiuso di default).</p>
+    <ul>
+      <li>Ogni giorno mostra <strong>occupati/massimo</strong> (es. 12/50)</li>
+      <li>🟢 Verde = posti disponibili</li>
+      <li>🟠 Arancio = quasi pieno (≥ 80%)</li>
+      <li>🔴 Rosso = capienza superata</li>
+      <li>★ = giorno con capienza personalizzata</li>
+      <li><strong>Click su un giorno</strong> → filtra le prenotazioni di quella data</li>
+      <li>Frecce <strong>‹ ›</strong> → cambia mese</li>
+    </ul>
+  </div>
+
+  <h2>⚙️ 6. Impostazioni</h2>
+  <p>Apri <strong>Impostazioni</strong> dalla barra in alto.</p>
+
+  <h3>🪑 Capienza posti</h3>
+  <div class="card">
+    <ul>
+      <li><strong>Numero posti massimi</strong> — valore generale per tutti i giorni</li>
+      <li><strong>Capienza per giorno</strong> — scegli data + posti → <strong>Salva capienza giorno</strong></li>
+    </ul>
+    <p>Utile per sabato sera, feste o giorni speciali.</p>
+  </div>
+
+  <h3>🕐 Orari prenotabili</h3>
+  <div class="card">
+    <p>Configura gli orari del menu a tendina:</p>
+    <ul>
+      <li>☑️ Servizio pranzo / cena</li>
+      <li>Inizio e fine per ogni servizio</li>
+      <li>Intervallo: ogni 15, 30 o 60 minuti</li>
+    </ul>
+    <p>Poi clicca <strong>Salva impostazioni</strong>.</p>
+  </div>
+
+  <h3>💬 Messaggi WhatsApp</h3>
+  <div class="card">
+    <p>Personalizza i messaggi ITA e ENG. Usa i placeholder cliccabili:</p>
+    <p>
+      <span class="chip">{name}</span>
+      <span class="chip">{people}</span>
+      <span class="chip">{date}</span>
+      <span class="chip">{time}</span>
+      <span class="chip">{phone}</span>
+      <span class="chip">{notes}</span>
+    </p>
+    <ol>
+      <li>Clicca nel campo messaggio ITA o ENG</li>
+      <li>Clicca sul placeholder desiderato</li>
+      <li>Salva impostazioni</li>
+    </ol>
+  </div>
+
+  <h2>📤 7. Export e report</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>📄 Export giorno</h3>
+      <ul>
+        <li>Scegli la data</li>
+        <li><strong>Esporta CSV</strong> → Excel/Sheets</li>
+        <li><strong>Esporta PDF</strong> → stampa/salva</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>📊 Report periodo</h3>
+      <ul>
+        <li>Scegli Dal / Al</li>
+        <li>Filtro stato (opzionale)</li>
+        <li><strong>Genera report</strong></li>
+        <li><strong>Report PDF</strong> per archivio</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>✅ 8. Routine consigliata</h2>
+  <div class="card">
+    <ol>
+      <li>🌅 Mattina → filtro <strong>Oggi</strong>, controlla i posti</li>
+      <li>📞 Nuova chiamata → inserisci subito la prenotazione</li>
+      <li>💬 Invia WhatsApp → poi segna <strong>OK</strong> se conferma</li>
+      <li>👁️ Dopo il servizio → segna i <strong>No-show</strong></li>
+      <li>📆 Weekend/eventi → imposta capienza specifica in anticipo</li>
+      <li>📤 Fine settimana → esporta CSV/PDF per archivio</li>
+    </ol>
+  </div>
+
+  <div class="footer">
+    Agenda Prenotazioni Ristorante · Guida utilizzo
+  </div>
+</body>
+</html>
