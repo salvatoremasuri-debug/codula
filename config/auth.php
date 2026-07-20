@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * File di esempio. Il file attivo è config/auth.php
+ * Credenziali di accesso all'agenda.
+ * CAMBIA username e password prima di usare in produzione.
  */
 return [
     "username" => "admin",
